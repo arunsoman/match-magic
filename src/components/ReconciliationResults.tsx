@@ -6,13 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, CheckCircle, XCircle, AlertTriangle, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface ReconciliationResult {
-  id: string;
-  sourceRow: Record<string, any>;
-  targetRow?: Record<string, any>;
-  status: 'matched' | 'unmatched-source' | 'unmatched-target' | 'discrepancy';
-  discrepancies?: string[];
-}
+import { ReconciliationResult } from '@/types/reconciliation';
 
 interface ReconciliationResultsProps {
   results: ReconciliationResult[];
@@ -33,8 +27,8 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
   const stats = {
     total: results.length,
     matched: results.filter(r => r.status === 'matched').length,
-    unmatchedSource: results.filter(r => r.status === 'unmatched-source').length,
-    unmatchedTarget: results.filter(r => r.status === 'unmatched-target').length,
+    unmatchedSource: results.filter(r => r.matchType === 'unmatched_source' || r.status === 'unmatched-source').length,
+    unmatchedTarget: results.filter(r => r.matchType === 'unmatched_target' || r.status === 'unmatched-target').length,
     discrepancies: results.filter(r => r.status === 'discrepancy').length
   };
 
@@ -75,6 +69,12 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
 
   const filteredResults = (status?: string) => {
     if (!status) return results;
+    if (status === 'unmatched-source') {
+      return results.filter(r => r.matchType === 'unmatched_source' || r.status === 'unmatched-source');
+    }
+    if (status === 'unmatched-target') {
+      return results.filter(r => r.matchType === 'unmatched_target' || r.status === 'unmatched-target');
+    }
     return results.filter(r => r.status === status);
   };
 
@@ -221,9 +221,12 @@ const ResultsTable: React.FC<{ results: ReconciliationResult[]; getStatusIcon: (
               </td>
               <td className="py-3 px-4 text-sm text-foreground">{result.id}</td>
               <td className="py-3 px-4 text-sm text-muted-foreground">
-                {Object.entries(result.sourceRow).slice(0, 2).map(([key, value]) => (
-                  <div key={key}>{key}: {String(value)}</div>
-                ))}
+                {result.sourceRow ? 
+                  Object.entries(result.sourceRow).slice(0, 2).map(([key, value]) => (
+                    <div key={key}>{key}: {String(value)}</div>
+                  ))
+                  : <span className="text-muted-foreground">No source data</span>
+                }
               </td>
               <td className="py-3 px-4 text-sm text-muted-foreground">
                 {result.targetRow ? 

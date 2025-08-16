@@ -46,4 +46,51 @@ export interface ReconciliationConfig {
   mappings: ColumnMapping[];
   tolerance: number;
   enableFuzzyMatching: boolean;
+  virtualFields?: {
+    source: VirtualField[];
+    target: VirtualField[];
+  };
+}
+
+// Virtual Fields interfaces
+export interface VirtualField {
+  id: string;
+  name: string;
+  formula: VirtualFormulaDefinition;
+  dataType: 'number' | 'string' | 'date' | 'boolean';
+  sourceFile: 'source' | 'target';
+  createdAt: Date;
+  isValid: boolean;
+  preview?: any[];
+}
+
+export interface VirtualFormulaDefinition {
+  expression: string;
+  operations: Operation[];
+  fields: FieldReference[];
+  rawFormula: string; // Human readable formula like "Field1 + Field2"
+}
+
+export interface Operation {
+  id: string;
+  type: 'add' | 'subtract' | 'multiply' | 'divide' | 'abs' | 'concat' | 'date_diff' | 'negate' | 'conditional';
+  precedence: number;
+  symbol: string;
+  label: string;
+  dataTypes: ('number' | 'string' | 'date' | 'boolean')[];
+  description: string;
+}
+
+export interface FieldReference {
+  id: string;
+  name: string;
+  dataType: 'number' | 'string' | 'date' | 'boolean';
+  isVirtual: boolean;
+}
+
+export interface FormulaValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  preview?: any[];
 }

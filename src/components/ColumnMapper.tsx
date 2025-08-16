@@ -3,10 +3,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Plus, Trash2, Save, Calculator, Lightbulb } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, Save, Calculator, Lightbulb, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ColumnMapping } from '@/types/reconciliation';
+import { ColumnMapping, VirtualField } from '@/types/reconciliation';
 import { FormulaMapper } from '@/components/FormulaMapper';
+import { VirtualFieldManager } from '@/components/VirtualFieldManager';
+import { VirtualFieldBuilder } from '@/components/VirtualFieldBuilder';
 import { DataTransformer } from '@/utils/dataTransformation';
 
 interface ColumnMapperProps {
@@ -15,6 +17,7 @@ interface ColumnMapperProps {
   sourceFileName: string;
   targetFileName: string;
   onMappingsChange: (mappings: ColumnMapping[]) => void;
+  onVirtualFieldsChange?: (sourceVFs: VirtualField[], targetVFs: VirtualField[]) => void;
   className?: string;
 }
 
@@ -24,6 +27,7 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   sourceFileName,
   targetFileName,
   onMappingsChange,
+  onVirtualFieldsChange,
   className
 }) => {
   const [mappings, setMappings] = useState<ColumnMapping[]>([
@@ -36,6 +40,10 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   ]);
   
   const [suggestions, setSuggestions] = useState<Partial<ColumnMapping>[]>([]);
+  const [virtualFields, setVirtualFields] = useState<VirtualField[]>([]);
+  const [showVirtualFieldDialog, setShowVirtualFieldDialog] = useState(false);
+  const [editingVirtualField, setEditingVirtualField] = useState<VirtualField | null>(null);
+  const [virtualFieldSourceFile, setVirtualFieldSourceFile] = useState<'source' | 'target'>('source');
 
   useEffect(() => {
     // Get formula suggestions when columns change
@@ -43,20 +51,14 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
     setSuggestions(formulaSuggestions);
   }, [sourceColumns, targetColumns]);
 
-  const addMapping = (type: 'standard' | 'formula' = 'standard') => {
+  const addMapping = () => {
     const newMapping: ColumnMapping = {
       id: Date.now().toString(),
-      sourceColumn: type === 'formula' ? [] : '',
+      sourceColumn: '',
       targetColumn: '',
-      matchType: type === 'formula' ? 'formula' : 'exact',
-      ...(type === 'formula' && {
-        formula: {
-          type: 'debit_credit_to_amount',
-          sourceColumns: {},
-          targetColumns: {}
-        }
-      })
+      matchType: 'exact'
     };
+    
     const updatedMappings = [...mappings, newMapping];
     setMappings(updatedMappings);
     onMappingsChange(updatedMappings);
@@ -107,56 +109,128 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
 
   const allMappingsValid = mappings.every(isValidMapping);
 
+  // Virtual field handlers
+  const handleCreateVirtualField = (sourceFile: 'source' | 'target') => {
+    setVirtualFieldSourceFile(sourceFile);
+    setEditingVirtualField(null);
+    setShowVirtualFieldDialog(true);
+  };
+
+  const handleEditVirtualField = (field: VirtualField) => {
+    setEditingVirtualField(field);
+    setVirtualFieldSourceFile(field.sourceFile);
+    setShowVirtualFieldDialog(true);
+  };
+
+  const handleDeleteVirtualField = (fieldId: string) => {
+    setVirtualFields(prev => prev.filter(f => f.id !== fieldId));
+  };
+
+  const handleSaveVirtualField = (field: VirtualField) => {
+    setVirtualFields(prev => {
+      const existing = prev.find(f => f.id === field.id);
+      let newVirtualFields;
+      if (existing) {
+        newVirtualFields = prev.map(f => f.id === field.id ? field : f);
+      } else {
+        newVirtualFields = [...prev, field];
+      }
+      
+      // Notify parent component
+      if (onVirtualFieldsChange) {
+        const sourceVFs = newVirtualFields.filter(f => f.sourceFile === 'source');
+        const targetVFs = newVirtualFields.filter(f => f.sourceFile === 'target');
+        onVirtualFieldsChange(sourceVFs, targetVFs);
+      }
+      
+      return newVirtualFields;
+    });
+  };
+
+  const canCreateVirtualField = (sourceFile: 'source' | 'target') => {
+    return virtualFields.filter(f => f.sourceFile === sourceFile).length < 5;
+  };
+
+  // Get combined columns (real + virtual) for each file
+  const getColumnsWithVirtual = (sourceFile: 'source' | 'target') => {
+    const realColumns = sourceFile === 'source' ? sourceColumns : targetColumns;
+    const virtualCols = virtualFields
+      .filter(f => f.sourceFile === sourceFile && f.isValid)
+      .map(f => f.name);
+    return [...realColumns, ...virtualCols];
+  };
+
   return (
     <Card className={cn("relative", className)}>
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-foreground">Column Mapping</h3>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => addMapping('standard')}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Mapping
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => addMapping('formula')}>
-              <Calculator className="w-4 h-4 mr-2" />
-              Add Formula
-            </Button>
-          </div>
         </div>
 
-        {/* Suggestions */}
-        {suggestions.length > 0 && (
-          <div className="mb-6 p-4 bg-accent/10 rounded-lg border border-primary/20">
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Suggested Formula Mappings</span>
+
+        {/* Virtual Fields Section */}
+        {(virtualFields.length > 0 || true) && (
+          <div className="mb-6 p-4 bg-accent/5 rounded-lg border border-border/50">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                Virtual Fields
+              </h4>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateVirtualField('source')}
+                  disabled={!canCreateVirtualField('source')}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Source
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateVirtualField('target')}
+                  disabled={!canCreateVirtualField('target')}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Target
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              {suggestions.map((suggestion, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
-                  <div className="text-sm">
-                    <span className="font-medium">
-                      {suggestion.formula?.type === 'debit_credit_to_amount' 
-                        ? 'Convert Debit/Credit → Amount' 
-                        : 'Convert Amount → Debit/Credit'}
-                    </span>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => addSuggestion(suggestion)}>
-                    <Plus className="w-3 h-3 mr-1" />
-                    Apply
-                  </Button>
+            
+            {virtualFields.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <VirtualFieldManager
+                    virtualFields={virtualFields}
+                    sourceFile="source"
+                    onEdit={handleEditVirtualField}
+                    onDelete={handleDeleteVirtualField}
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <VirtualFieldManager
+                    virtualFields={virtualFields}
+                    sourceFile="target"
+                    onEdit={handleEditVirtualField}
+                    onDelete={handleDeleteVirtualField}
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No virtual fields created yet. Click the buttons above to create computed columns.
+              </p>
+            )}
           </div>
         )}
 
         <div className="space-y-4">
           {/* Header */}
-          <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
-            <div className="col-span-4">{sourceFileName}</div>
+          <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground border-b border-border pb-2">
+            <div className="col-span-4">Source Column</div>
             <div className="col-span-1"></div>
-            <div className="col-span-4">{targetFileName}</div>
+            <div className="col-span-4">Target Column</div>
             <div className="col-span-2">Match Type</div>
             <div className="col-span-1"></div>
           </div>
@@ -164,21 +238,7 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
           {/* Mappings */}
           {mappings.map((mapping, index) => (
             <div key={mapping.id} className="space-y-4">
-              {mapping.matchType === 'formula' ? (
-                <FormulaMapper
-                  mapping={mapping}
-                  sourceColumns={sourceColumns}
-                  targetColumns={targetColumns}
-                  onMappingUpdate={(updatedMapping) => {
-                    const updatedMappings = mappings.map(m => 
-                      m.id === updatedMapping.id ? updatedMapping : m
-                    );
-                    setMappings(updatedMappings);
-                    onMappingsChange(updatedMappings);
-                  }}
-                />
-              ) : (
-                <div className="grid grid-cols-12 gap-4 items-center">
+              <div className="grid grid-cols-12 gap-4 items-center">
                   {/* Source Column */}
                   <div className="col-span-4">
                     <Select
@@ -192,9 +252,14 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
                         <SelectValue placeholder="Select source column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {sourceColumns.map((column) => (
+                        {getColumnsWithVirtual('source').map((column) => (
                           <SelectItem key={column} value={column}>
-                            {column}
+                            <div className="flex items-center gap-2">
+                              {virtualFields.some(f => f.name === column && f.sourceFile === 'source') && (
+                                <Calculator className="w-3 h-3 text-primary" />
+                              )}
+                              {column}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -219,9 +284,14 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
                         <SelectValue placeholder="Select target column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {targetColumns.map((column) => (
+                        {getColumnsWithVirtual('target').map((column) => (
                           <SelectItem key={column} value={column}>
-                            {column}
+                            <div className="flex items-center gap-2">
+                              {virtualFields.some(f => f.name === column && f.sourceFile === 'target') && (
+                                <Calculator className="w-3 h-3 text-primary" />
+                              )}
+                              {column}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -232,7 +302,7 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
                   <div className="col-span-2">
                     <Select
                       value={mapping.matchType}
-                      onValueChange={(value: 'exact' | 'fuzzy' | 'formula') => updateMapping(mapping.id, 'matchType', value)}
+                      onValueChange={(value: 'exact' | 'fuzzy') => updateMapping(mapping.id, 'matchType', value)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue />
@@ -249,13 +319,6 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className={getMatchTypeColor('fuzzy')}>
                               Fuzzy
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="formula">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className={getMatchTypeColor('formula')}>
-                              Formula
                             </Badge>
                           </div>
                         </SelectItem>
@@ -277,33 +340,48 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
                     )}
                   </div>
                 </div>
-              )}
             </div>
           ))}
+          
+          {/* Add Mapping Button - moved below mappings for better UX */}
+          <div className="flex justify-center pt-4">
+            <Button variant="outline" size="sm" onClick={addMapping}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Mapping
+            </Button>
+          </div>
         </div>
 
         {/* Validation Summary */}
-        <div className="mt-6 p-4 bg-card-secondary rounded-lg">
+        <div className="mt-6 p-3 bg-card-secondary rounded-lg">
           <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <span className="font-medium text-foreground">
-                {mappings.filter(isValidMapping).length} of {mappings.length} mappings configured
-              </span>
-              {!allMappingsValid && (
-                <p className="text-muted-foreground mt-1">
-                  Complete all mappings to proceed with reconciliation
-                </p>
-              )}
-            </div>
+            <span className="text-sm font-medium text-foreground">
+              {mappings.filter(isValidMapping).length} of {mappings.length} mappings configured
+            </span>
             
-            {allMappingsValid && (
+            {allMappingsValid ? (
               <div className="flex items-center gap-2 text-success">
                 <Save className="w-4 h-4" />
                 <span className="text-sm font-medium">Ready to reconcile</span>
               </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Complete all mappings to proceed
+              </span>
             )}
           </div>
         </div>
+
+        {/* Virtual Field Builder Dialog */}
+        <VirtualFieldBuilder
+          isOpen={showVirtualFieldDialog}
+          onClose={() => setShowVirtualFieldDialog(false)}
+          onSave={handleSaveVirtualField}
+          availableColumns={virtualFieldSourceFile === 'source' ? sourceColumns : targetColumns}
+          sourceFile={virtualFieldSourceFile}
+          editingField={editingVirtualField}
+          sampleData={[]} // TODO: Pass actual sample data when available
+        />
       </div>
     </Card>
   );

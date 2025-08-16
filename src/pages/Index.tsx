@@ -5,42 +5,62 @@ import { FileUpload } from '@/components/FileUpload';
 import { ColumnMapper } from '@/components/ColumnMapper';
 import { ReconciliationResults } from '@/components/ReconciliationResults';
 import { CheckCircle, FileSpreadsheet, ArrowRightLeft, BarChart3, Shield, Clock } from 'lucide-react';
+import { ColumnMapping, VirtualField, ReconciliationResult } from '@/types/reconciliation';
+import { ReconciliationEngine } from '@/utils/reconciliationEngine';
+import * as XLSX from 'xlsx';
 import heroImage from '@/assets/hero-finance.jpg';
-
-// Mock data for demonstration
-const mockResults = [
-  {
-    id: 'TXN001',
-    sourceRow: { 'Transaction ID': 'TXN001', 'Amount': 1500.00, 'Date': '2024-01-15' },
-    targetRow: { 'ID': 'TXN001', 'Value': 1500.00, 'Date': '2024-01-15' },
-    status: 'matched' as const
-  },
-  {
-    id: 'TXN002',
-    sourceRow: { 'Transaction ID': 'TXN002', 'Amount': 750.50, 'Date': '2024-01-16' },
-    status: 'unmatched-source' as const
-  },
-  {
-    id: 'TXN003',
-    sourceRow: { 'Transaction ID': 'TXN003', 'Amount': 2200.00, 'Date': '2024-01-17' },
-    targetRow: { 'ID': 'TXN003', 'Value': 2199.99, 'Date': '2024-01-17' },
-    status: 'discrepancy' as const,
-    discrepancies: ['Amount difference: $0.01']
-  }
-];
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<'upload' | 'mapping' | 'results'>('upload');
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [targetFile, setTargetFile] = useState<File | null>(null);
+  const [sourceData, setSourceData] = useState<Record<string, any>[]>([]);
+  const [targetData, setTargetData] = useState<Record<string, any>[]>([]);
+  const [sourceColumns, setSourceColumns] = useState<string[]>([]);
+  const [targetColumns, setTargetColumns] = useState<string[]>([]);
+  const [mappings, setMappings] = useState<ColumnMapping[]>([]);
+  const [sourceVirtualFields, setSourceVirtualFields] = useState<VirtualField[]>([]);
+  const [targetVirtualFields, setTargetVirtualFields] = useState<VirtualField[]>([]);
+  const [reconciliationResults, setReconciliationResults] = useState<ReconciliationResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleFileSelect = (type: 'source' | 'target') => (file: File) => {
-    if (type === 'source') {
-      setSourceFile(file);
-    } else {
-      setTargetFile(file);
+  const handleFileSelect = (type: 'source' | 'target') => async (file: File) => {
+    try {
+      const data = await parseExcelFile(file);
+      const columns = data.length > 0 ? Object.keys(data[0]) : [];
+
+      if (type === 'source') {
+        setSourceFile(file);
+        setSourceData(data);
+        setSourceColumns(columns);
+      } else {
+        setTargetFile(file);
+        setTargetData(data);
+        setTargetColumns(columns);
+      }
+    } catch (error) {
+      console.error('Error parsing file:', error);
     }
+  };
+
+  const parseExcelFile = (file: File): Promise<Record<string, any>[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          resolve(jsonData as Record<string, any>[]);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
   };
 
   const proceedToMapping = () => {
@@ -49,19 +69,52 @@ const Index = () => {
     }
   };
 
-  const startReconciliation = () => {
+  const startReconciliation = async () => {
     setIsProcessing(true);
-    // Simulate processing
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      console.log('Starting reconciliation with:', {
+        sourceData: sourceData.length,
+        targetData: targetData.length,
+        sourceVirtualFields: sourceVirtualFields.length,
+        targetVirtualFields: targetVirtualFields.length,
+        mappings: mappings.length,
+        mappingsDetails: mappings
+      });
+
+      const results = await ReconciliationEngine.reconcile({
+        sourceData,
+        targetData,
+        sourceVirtualFields,
+        targetVirtualFields,
+        mappings,
+        config: {
+          tolerance: 0.5, // Increased tolerance for amount matching
+          matchStrategy: 'smart'
+        }
+      });
+
+      console.log('Reconciliation results:', results);
+      setReconciliationResults(results);
       setCurrentStep('results');
-    }, 3000);
+    } catch (error) {
+      console.error('Reconciliation failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const resetProcess = () => {
     setCurrentStep('upload');
     setSourceFile(null);
     setTargetFile(null);
+    setSourceData([]);
+    setTargetData([]);
+    setSourceColumns([]);
+    setTargetColumns([]);
+    setMappings([]);
+    setSourceVirtualFields([]);
+    setTargetVirtualFields([]);
+    setReconciliationResults([]);
     setIsProcessing(false);
   };
 
@@ -113,12 +166,12 @@ const Index = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
             <FileUpload
-              title="Source File (Bank Statement)"
+              title="Source File"
               onFileSelect={handleFileSelect('source')}
               acceptedFile={sourceFile}
             />
             <FileUpload
-              title="Target File (Internal Ledger)"
+              title="Target File"
               onFileSelect={handleFileSelect('target')}
               acceptedFile={targetFile}
             />
@@ -182,11 +235,15 @@ const Index = () => {
           </div>
           
           <ColumnMapper
-            sourceColumns={['Transaction_Date', 'Transaction_ID', 'Description', 'Debit_Amount', 'Credit_Amount', 'Balance']}
-            targetColumns={['Date', 'Reference_Number', 'Transaction_Details', 'Amount', 'Category']}
+            sourceColumns={sourceColumns}
+            targetColumns={targetColumns}
             sourceFileName={sourceFile?.name || 'Source File'}
             targetFileName={targetFile?.name || 'Target File'}
-            onMappingsChange={(mappings) => console.log('Mappings:', mappings)}
+            onMappingsChange={setMappings}
+            onVirtualFieldsChange={(sourceVFs, targetVFs) => {
+              setSourceVirtualFields(sourceVFs);
+              setTargetVirtualFields(targetVFs);
+            }}
           />
 
           <div className="text-center mt-8">
@@ -228,7 +285,7 @@ const Index = () => {
         </div>
         
         <ReconciliationResults
-          results={mockResults}
+          results={reconciliationResults}
           sourceFileName={sourceFile?.name || 'Source File'}
           targetFileName={targetFile?.name || 'Target File'}
         />

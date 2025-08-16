@@ -1,6 +1,42 @@
-import { ColumnMapping, FormulaMapping, TransformedData } from '@/types/reconciliation';
+import { ColumnMapping, FormulaMapping, TransformedData, VirtualField } from '@/types/reconciliation';
+import { ExpressionEvaluator } from '@/utils/expressionEvaluator';
 
 export class DataTransformer {
+  /**
+   * Transform data with virtual fields and column mappings
+   */
+  static transformDataWithVirtualFields(
+    data: Record<string, any>[],
+    virtualFields: VirtualField[],
+    mappings: ColumnMapping[],
+    isSource: boolean = true
+  ): TransformedData[] {
+    // First, compute virtual fields
+    const dataWithVirtuals = this.computeVirtualFields(data, virtualFields);
+    
+    // Then apply existing transformations
+    return this.transformData(dataWithVirtuals, mappings, isSource);
+  }
+
+  /**
+   * Compute virtual fields for dataset
+   */
+  static computeVirtualFields(
+    data: Record<string, any>[],
+    virtualFields: VirtualField[]
+  ): Record<string, any>[] {
+    if (virtualFields.length === 0) return data;
+
+    const result = ExpressionEvaluator.evaluateVirtualFields(virtualFields, data);
+    
+    if (result.success && result.data) {
+      return result.data;
+    } else {
+      console.warn('Virtual field computation failed:', result.errors);
+      return data;
+    }
+  }
+
   /**
    * Transform data based on column mappings with formulas
    */
