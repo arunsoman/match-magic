@@ -182,8 +182,8 @@ const Index = () => {
           </div>
           
           <ColumnMapper
-            sourceColumns={['Transaction ID', 'Amount', 'Date', 'Description', 'Account']}
-            targetColumns={['ID', 'Value', 'Date', 'Notes', 'Category']}
+            sourceColumns={['Transaction_Date', 'Transaction_ID', 'Description', 'Debit_Amount', 'Credit_Amount', 'Balance']}
+            targetColumns={['Date', 'Reference_Number', 'Transaction_Details', 'Amount', 'Category']}
             sourceFileName={sourceFile?.name || 'Source File'}
             targetFileName={targetFile?.name || 'Target File'}
             onMappingsChange={(mappings) => console.log('Mappings:', mappings)}
