@@ -18,7 +18,7 @@ interface VirtualFieldBuilderProps {
   onSave: (field: VirtualField) => void;
   availableColumns: string[];
   sourceFile: 'source' | 'target';
-  initialVirtualField?: VirtualField | null;
+  editingField?: VirtualField | null;
   sampleData?: Record<string, any>[];
 }
 
@@ -95,7 +95,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
   onSave,
   availableColumns,
   sourceFile,
-  initialVirtualField,
+  editingField,
   sampleData = []
 }) => {
   const [fieldName, setFieldName] = useState('');
@@ -108,16 +108,16 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
   const [previewResults, setPreviewResults] = useState<any[]>([]);
 
   useEffect(() => {
-    if (initialVirtualField) {
-      setFieldName(initialVirtualField.name);
-      setSelectedFields(initialVirtualField.formula.fields);
-      setSelectedOperations(initialVirtualField.formula.operations);
-      setDataType(initialVirtualField.dataType);
-      setRawFormula(initialVirtualField.formula.rawFormula);
+    if (editingField) {
+      setFieldName(editingField.name);
+      setSelectedFields(editingField.formula.fields);
+      setSelectedOperations(editingField.formula.operations);
+      setDataType(editingField.dataType);
+      setRawFormula(editingField.formula.rawFormula);
     } else {
       resetForm();
     }
-  }, [initialVirtualField, isOpen]);
+  }, [editingField, isOpen]);
 
   const resetForm = () => {
     setFieldName('');
@@ -265,12 +265,12 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
     };
 
     const virtualField: VirtualField = {
-      id: initialVirtualField?.id || Date.now().toString(),
+      id: editingField?.id || Date.now().toString(),
       name: fieldName.trim(),
       formula,
       dataType,
       sourceFile,
-      createdAt: initialVirtualField?.createdAt || new Date(),
+      createdAt: editingField?.createdAt || new Date(),
       isValid: true,
       preview: sampleData.slice(0, 5) // TODO: Compute actual preview
     };
@@ -296,7 +296,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calculator className="w-5 h-5" />
-            {initialVirtualField ? 'Edit Virtual Field' : 'Create Virtual Field'}
+            {editingField ? 'Edit Virtual Field' : 'Create Virtual Field'}
           </DialogTitle>
         </DialogHeader>
 
@@ -513,7 +513,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!validation.isValid}>
-            {initialVirtualField ? 'Update' : 'Create'} Virtual Field
+            {editingField ? 'Update' : 'Create'} Virtual Field
           </Button>
         </DialogFooter>
       </DialogContent>

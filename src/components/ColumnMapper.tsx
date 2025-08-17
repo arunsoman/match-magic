@@ -224,321 +224,314 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   };
 
   return (
-    <div className={cn("space-y-6", className)}>
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-foreground">Column Mapping</h2>
-        <p className="text-muted-foreground">Configure how your data columns should be mapped and processed</p>
-      </div>
+    <Card className={cn("relative", className)}>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-foreground">Column Mapping</h3>
+        </div>
 
-      {/* Advanced Processing Panel - Only show when needed */}
-      {(virtualFields.length > 0 || transformations.length > 0) && (
-        <Card className="border-dashed">
-          <div className="p-6">
+
+        {/* Data Processing Section */}
+        <div className="mb-6 space-y-4">
+          {/* Virtual Fields */}
+          <div className="p-4 bg-accent/5 rounded-lg border border-border/50">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-foreground">Advanced Processing</h3>
-              <div className="flex gap-3">
+              <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                Virtual Fields
+              </h4>
+              <div className="flex gap-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => handleCreateVirtualField('source')}
                   disabled={!canCreateVirtualField('source')}
-                  className="text-primary hover:text-primary/80"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Add Virtual Field
+                  <Plus className="w-3 h-3 mr-1" />
+                  Source
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleCreateTransformation('source')}
-                  className="text-blue-600 hover:text-blue-500"
+                  onClick={() => handleCreateVirtualField('target')}
+                  disabled={!canCreateVirtualField('target')}
                 >
-                  <Calculator className="w-4 h-4 mr-2" />
-                  Add Transformation
+                  <Plus className="w-3 h-3 mr-1" />
+                  Target
                 </Button>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Virtual Fields Column */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <h4 className="font-medium text-foreground">Virtual Fields</h4>
-                  <Badge variant="secondary" className="text-xs">
-                    {virtualFields.length}
-                  </Badge>
+            
+            {virtualFields.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <VirtualFieldManager
+                    virtualFields={virtualFields}
+                    sourceFile="source"
+                    onEdit={handleEditVirtualField}
+                    onDelete={handleDeleteVirtualField}
+                  />
                 </div>
-                {virtualFields.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2">
-                    <VirtualFieldManager
-                      virtualFields={virtualFields}
-                      sourceFile="source"
-                      onEdit={handleEditVirtualField}
-                      onDelete={handleDeleteVirtualField}
-                    />
-                    <VirtualFieldManager
-                      virtualFields={virtualFields}
-                      sourceFile="target"
-                      onEdit={handleEditVirtualField}
-                      onDelete={handleDeleteVirtualField}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No virtual fields created</p>
-                )}
+                <div>
+                  <VirtualFieldManager
+                    virtualFields={virtualFields}
+                    sourceFile="target"
+                    onEdit={handleEditVirtualField}
+                    onDelete={handleDeleteVirtualField}
+                  />
+                </div>
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No virtual fields created yet. Click the buttons above to create computed columns.
+              </p>
+            )}
+          </div>
 
-              {/* Transformations Column */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-blue-600" />
-                  <h4 className="font-medium text-foreground">Data Transformations</h4>
-                  <Badge variant="secondary" className="text-xs">
-                    {transformations.length}
-                  </Badge>
-                </div>
-                {transformations.length > 0 ? (
-                  <div className="space-y-3">
-                    {transformations.map(transformation => (
+          {/* Transformations */}
+          <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-blue-600" />
+                Data Transformations
+              </h4>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTransformation('source')}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Source
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTransformation('target')}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Target
+                </Button>
+              </div>
+            </div>
+            
+            {transformations.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Source Transformations</h5>
+                  {transformations
+                    .filter(t => t.sourceFile === 'source')
+                    .map(transformation => (
                       <TransformationCard
                         key={transformation.id}
                         transformation={transformation}
                         onEdit={handleEditTransformation}
                         onDelete={handleDeleteTransformation}
                       />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No transformations created</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Quick Actions for first-time users */}
-      {virtualFields.length === 0 && transformations.length === 0 && (
-        <Card className="border-dashed bg-muted/20">
-          <div className="p-6 text-center space-y-4">
-            <div className="flex justify-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Sparkles className="w-4 h-4" />
-                Need computed fields?
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calculator className="w-4 h-4" />
-                Need data preprocessing?
-              </div>
-            </div>
-            <div className="flex justify-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCreateVirtualField('source')}
-                className="border-primary/20 text-primary hover:bg-primary/5"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Create Virtual Field
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCreateTransformation('source')}
-                className="border-blue-200 text-blue-600 hover:bg-blue-50"
-              >
-                <Calculator className="w-4 h-4 mr-2" />
-                Add Transformation
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Main Mapping Section */}
-      <Card>
-
-        <div className="p-6 space-y-6">
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-foreground">Field Mappings</h3>
-            <p className="text-sm text-muted-foreground">Map columns between your source and target files</p>
-          </div>
-
-          {/* Elegant Header Row */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/30 rounded-lg">
-            <div className="col-span-4 text-sm font-medium text-muted-foreground">
-              Source ({sourceFileName})
-            </div>
-            <div className="col-span-1"></div>
-            <div className="col-span-4 text-sm font-medium text-muted-foreground">
-              Target ({targetFileName})
-            </div>
-            <div className="col-span-2 text-sm font-medium text-muted-foreground">Match Type</div>
-            <div className="col-span-1"></div>
-          </div>
-
-          {/* Clean Mapping Rows */}
-          <div className="space-y-3">
-            {mappings.map((mapping, index) => (
-              <div key={mapping.id} className="grid grid-cols-12 gap-4 p-4 rounded-lg border bg-card hover:bg-muted/10 transition-colors">
-                {/* Source Column */}
-                <div className="col-span-4">
-                  <Select
-                    value={typeof mapping.sourceColumn === 'string' ? mapping.sourceColumn : ''}
-                    onValueChange={(value) => updateMapping(mapping.id, 'sourceColumn', value)}
-                  >
-                    <SelectTrigger className={cn(
-                      "w-full border-0 bg-background shadow-sm",
-                      !mapping.sourceColumn && "text-muted-foreground"
-                    )}>
-                      <SelectValue placeholder="Choose column..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getColumnsWithVirtual('source').map((column) => (
-                        <SelectItem key={column} value={column}>
-                          <div className="flex items-center gap-2">
-                            {virtualFields.some(f => f.name === column && f.sourceFile === 'source') && (
-                              <Sparkles className="w-3 h-3 text-primary" />
-                            )}
-                            <span className="truncate">{column}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    ))
+                  }
+                  {transformations.filter(t => t.sourceFile === 'source').length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No source transformations
+                    </p>
+                  )}
                 </div>
-
-                {/* Arrow */}
-                <div className="col-span-1 flex justify-center items-center">
-                  <ArrowRight className={cn(
-                    "w-4 h-4 transition-colors",
-                    isValidMapping(mapping) ? "text-success" : "text-muted-foreground"
-                  )} />
-                </div>
-
-                {/* Target Column */}
-                <div className="col-span-4">
-                  <Select
-                    value={mapping.targetColumn}
-                    onValueChange={(value) => updateMapping(mapping.id, 'targetColumn', value)}
-                  >
-                    <SelectTrigger className={cn(
-                      "w-full border-0 bg-background shadow-sm",
-                      !mapping.targetColumn && "text-muted-foreground"
-                    )}>
-                      <SelectValue placeholder="Choose column..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getColumnsWithVirtual('target').map((column) => (
-                        <SelectItem key={column} value={column}>
-                          <div className="flex items-center gap-2">
-                            {virtualFields.some(f => f.name === column && f.sourceFile === 'target') && (
-                              <Sparkles className="w-3 h-3 text-primary" />
-                            )}
-                            <span className="truncate">{column}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Match Type */}
-                <div className="col-span-2">
-                  <Select
-                    value={mapping.matchType}
-                    onValueChange={(value: 'exact' | 'fuzzy') => updateMapping(mapping.id, 'matchType', value)}
-                  >
-                    <SelectTrigger className="w-full border-0 bg-background shadow-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="exact">
-                        <Badge variant="secondary" className={getMatchTypeColor('exact')}>
-                          Exact
-                        </Badge>
-                      </SelectItem>
-                      <SelectItem value="fuzzy">
-                        <Badge variant="secondary" className={getMatchTypeColor('fuzzy')}>
-                          Fuzzy
-                        </Badge>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Actions */}
-                <div className="col-span-1 flex justify-center items-center">
-                  {mappings.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeMapping(mapping.id)}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                <div className="space-y-2">
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Target Transformations</h5>
+                  {transformations
+                    .filter(t => t.sourceFile === 'target')
+                    .map(transformation => (
+                      <TransformationCard
+                        key={transformation.id}
+                        transformation={transformation}
+                        onEdit={handleEditTransformation}
+                        onDelete={handleDeleteTransformation}
+                      />
+                    ))
+                  }
+                  {transformations.filter(t => t.sourceFile === 'target').length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No target transformations</p>
                   )}
                 </div>
               </div>
-            ))}
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No transformations created yet. Click the buttons above to create data preprocessing pipelines.
+              </p>
+            )}
           </div>
-          
-          {/* Add Mapping Button */}
-          <div className="flex justify-center pt-2">
-            <Button 
-              variant="outline" 
-              onClick={addMapping}
-              className="border-dashed border-2 hover:border-solid"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Another Mapping
-            </Button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground border-b border-border pb-2">
+            <div className="col-span-4">Source Column</div>
+            <div className="col-span-1"></div>
+            <div className="col-span-4">Target Column</div>
+            <div className="col-span-2">Match Type</div>
+            <div className="col-span-1"></div>
           </div>
 
-          {/* Status Footer */}
-          <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground">
-                {mappings.filter(isValidMapping).length} of {mappings.length} mappings ready
-              </span>
+          {/* Mappings */}
+          {mappings.map((mapping, index) => (
+            <div key={mapping.id} className="space-y-4">
+              <div className="grid grid-cols-12 gap-4 items-center">
+                  {/* Source Column */}
+                  <div className="col-span-4">
+                    <Select
+                      value={typeof mapping.sourceColumn === 'string' ? mapping.sourceColumn : ''}
+                      onValueChange={(value) => updateMapping(mapping.id, 'sourceColumn', value)}
+                    >
+                      <SelectTrigger className={cn(
+                        "w-full",
+                        !mapping.sourceColumn && "border-border-light text-muted-foreground"
+                      )}>
+                        <SelectValue placeholder="Select source column" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getColumnsWithVirtual('source').map((column) => (
+                          <SelectItem key={column} value={column}>
+                            <div className="flex items-center gap-2">
+                              {virtualFields.some(f => f.name === column && f.sourceFile === 'source') && (
+                                <Calculator className="w-3 h-3 text-primary" />
+                              )}
+                              {column}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="col-span-1 flex justify-center">
+                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
+
+                  {/* Target Column */}
+                  <div className="col-span-4">
+                    <Select
+                      value={mapping.targetColumn}
+                      onValueChange={(value) => updateMapping(mapping.id, 'targetColumn', value)}
+                    >
+                      <SelectTrigger className={cn(
+                        "w-full",
+                        !mapping.targetColumn && "border-border-light text-muted-foreground"
+                      )}>
+                        <SelectValue placeholder="Select target column" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getColumnsWithVirtual('target').map((column) => (
+                          <SelectItem key={column} value={column}>
+                            <div className="flex items-center gap-2">
+                              {virtualFields.some(f => f.name === column && f.sourceFile === 'target') && (
+                                <Calculator className="w-3 h-3 text-primary" />
+                              )}
+                              {column}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Match Type */}
+                  <div className="col-span-2">
+                    <Select
+                      value={mapping.matchType}
+                      onValueChange={(value: 'exact' | 'fuzzy') => updateMapping(mapping.id, 'matchType', value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="exact">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className={getMatchTypeColor('exact')}>
+                              Exact
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="fuzzy">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className={getMatchTypeColor('fuzzy')}>
+                              Fuzzy
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Remove Button */}
+                  <div className="col-span-1 flex justify-center">
+                    {mappings.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeMapping(mapping.id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
             </div>
+          ))}
+          
+          {/* Add Mapping Button - moved below mappings for better UX */}
+          <div className="flex justify-center pt-4">
+            <Button variant="outline" size="sm" onClick={addMapping}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Mapping
+            </Button>
+          </div>
+        </div>
+
+        {/* Validation Summary */}
+        <div className="mt-6 p-3 bg-card-secondary rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground">
+              {mappings.filter(isValidMapping).length} of {mappings.length} mappings configured
+            </span>
             
             {allMappingsValid ? (
               <div className="flex items-center gap-2 text-success">
-                <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                <Save className="w-4 h-4" />
                 <span className="text-sm font-medium">Ready to reconcile</span>
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">
-                Complete remaining mappings to proceed
+                Complete all mappings to proceed
               </span>
             )}
           </div>
         </div>
-      </Card>
 
-      {/* Dialog Components */}
-      <VirtualFieldBuilder
-        isOpen={showVirtualFieldDialog}
-        onClose={() => setShowVirtualFieldDialog(false)}
-        onSave={handleSaveVirtualField}
-        availableColumns={virtualFieldSourceFile === 'source' ? sourceColumns : targetColumns}
-        initialVirtualField={editingVirtualField}
-        sourceFile={virtualFieldSourceFile}
-      />
+        {/* Virtual Field Builder Dialog */}
+        <VirtualFieldBuilder
+          isOpen={showVirtualFieldDialog}
+          onClose={() => setShowVirtualFieldDialog(false)}
+          onSave={handleSaveVirtualField}
+          availableColumns={virtualFieldSourceFile === 'source' ? sourceColumns : targetColumns}
+          initialVirtualField={editingVirtualField}
+          sourceFile={virtualFieldSourceFile}
+        />
 
-      <TransformationBuilder
-        isOpen={showTransformationDialog}
-        onClose={() => setShowTransformationDialog(false)}
-        onSave={handleSaveTransformation}
-        availableColumns={transformationSourceFile === 'source' ? [...sourceColumns, ...virtualFields.filter(vf => vf.sourceFile === 'source').map(vf => vf.name)] : [...targetColumns, ...virtualFields.filter(vf => vf.sourceFile === 'target').map(vf => vf.name)]}
-        sampleData={sampleData?.[transformationSourceFile] || []}
-        initialPipeline={editingTransformation}
-        sourceFile={transformationSourceFile}
-      />
-    </div>
+        {/* Transformation Builder Dialog */}
+        <TransformationBuilder
+          isOpen={showTransformationDialog}
+          onClose={() => setShowTransformationDialog(false)}
+          onSave={handleSaveTransformation}
+          availableColumns={transformationSourceFile === 'source' ? [...sourceColumns, ...virtualFields.filter(vf => vf.sourceFile === 'source').map(vf => vf.name)] : [...targetColumns, ...virtualFields.filter(vf => vf.sourceFile === 'target').map(vf => vf.name)]}
+          sampleData={sampleData?.[transformationSourceFile] || []}
+          initialPipeline={editingTransformation}
+          sourceFile={transformationSourceFile}
+        />
+      </div>
+    </Card>
   );
 };
