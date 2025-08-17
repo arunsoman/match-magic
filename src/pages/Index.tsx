@@ -3,15 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FileUpload } from '@/components/FileUpload';
 import { ColumnMapper } from '@/components/ColumnMapper';
+import { SortConfigurationPanel, SortConfiguration } from '@/components/SortConfigurationPanel';
 import { ReconciliationResults } from '@/components/ReconciliationResults';
-import { CheckCircle, FileSpreadsheet, ArrowRightLeft, BarChart3, Shield, Clock } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, ArrowRightLeft, BarChart3, Shield, Clock, Zap, Database } from 'lucide-react';
 import { ColumnMapping, VirtualField, ReconciliationResult } from '@/types/reconciliation';
 import { ReconciliationEngine } from '@/utils/reconciliationEngine';
+import { StreamingReconciliationEngine } from '@/utils/streamingReconciliationEngine';
 import * as XLSX from 'xlsx';
 import heroImage from '@/assets/hero-finance.jpg';
 
 const Index = () => {
-  const [currentStep, setCurrentStep] = useState<'upload' | 'mapping' | 'results'>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'mapping' | 'sort-config' | 'results'>('upload');
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [targetFile, setTargetFile] = useState<File | null>(null);
   const [sourceData, setSourceData] = useState<Record<string, any>[]>([]);
@@ -23,6 +25,15 @@ const Index = () => {
   const [targetVirtualFields, setTargetVirtualFields] = useState<VirtualField[]>([]);
   const [reconciliationResults, setReconciliationResults] = useState<ReconciliationResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [useStreamingEngine, setUseStreamingEngine] = useState(false);
+  const [sortConfiguration, setSortConfiguration] = useState<SortConfiguration>({
+    sortKey: '',
+    tolerance: 0,
+    toleranceUnit: 'exact',
+    matchStrategy: 'smart',
+    chunkSize: 10000
+  });
+  const [processingProgress, setProcessingProgress] = useState({ processed: 0, total: 100, stage: '' });
 
   const handleFileSelect = (type: 'source' | 'target') => async (file: File) => {
     try {
@@ -64,13 +75,15 @@ const Index = () => {
   };
 
   const proceedToMapping = () => {
-    if (sourceFile && targetFile) {
+    if (canProceedToMapping) {
       setCurrentStep('mapping');
     }
   };
 
   const startReconciliation = async () => {
     setIsProcessing(true);
+    setProcessingProgress({ processed: 0, total: 100, stage: 'Initializing...' });
+    
     try {
       console.log('Starting reconciliation with:', {
         sourceData: sourceData.length,
@@ -78,20 +91,51 @@ const Index = () => {
         sourceVirtualFields: sourceVirtualFields.length,
         targetVirtualFields: targetVirtualFields.length,
         mappings: mappings.length,
-        mappingsDetails: mappings
+        mappingsDetails: mappings,
+        useStreamingEngine,
+        canProceedToMapping: sourceFile && targetFile && sourceData.length > 0 && targetData.length > 0,
+        canProceedToSortConfig: mappings.length > 0 && mappings.every(m => m.sourceColumn && m.targetColumn),
+        canProceedToResults: sortConfiguration.sourceSortKey && sortConfiguration.targetSortKey && (sortConfiguration.toleranceUnit === 'exact' || sortConfiguration.tolerance > 0)
       });
 
-      const results = await ReconciliationEngine.reconcile({
-        sourceData,
-        targetData,
-        sourceVirtualFields,
-        targetVirtualFields,
-        mappings,
-        config: {
-          tolerance: 0.5, // Increased tolerance for amount matching
-          matchStrategy: 'smart'
-        }
-      });
+      let results: ReconciliationResult[];
+
+      if (useStreamingEngine && sourceFile && targetFile) {
+        // Use streaming reconciliation for memory efficiency
+        const tolerance = sortConfiguration.toleranceUnit === 'exact' ? 0 : 
+          sortConfiguration.toleranceUnit === 'percentage' ? sortConfiguration.tolerance / 100 :
+          sortConfiguration.tolerance;
+
+        results = await StreamingReconciliationEngine.reconcileStreaming({
+          sourceFile,
+          targetFile,
+          sourceVirtualFields,
+          targetVirtualFields,
+          mappings,
+          config: {
+            tolerance,
+            matchStrategy: sortConfiguration.matchStrategy,
+            chunkSize: sortConfiguration.chunkSize,
+            sortKey: sortConfiguration.sortKey
+          },
+          onProgress: setProcessingProgress
+        });
+      } else {
+        // Use standard reconciliation
+        setProcessingProgress({ processed: 50, total: 100, stage: 'Processing records...' });
+        results = await ReconciliationEngine.reconcile({
+          sourceData,
+          targetData,
+          sourceVirtualFields,
+          targetVirtualFields,
+          mappings,
+          config: {
+            tolerance: 0.5,
+            matchStrategy: 'smart'
+          }
+        });
+        setProcessingProgress({ processed: 100, total: 100, stage: 'Complete' });
+      }
 
       console.log('Reconciliation results:', results);
       setReconciliationResults(results);
@@ -117,6 +161,30 @@ const Index = () => {
     setReconciliationResults([]);
     setIsProcessing(false);
   };
+
+  const handleMappingComplete = () => {
+    setCurrentStep('sort-config');
+  };
+
+  const handleSortConfigComplete = () => {
+    setCurrentStep('results');
+  };
+
+  const handleSortConfigurationChange = (config: SortConfiguration) => {
+    setSortConfiguration(config);
+    setUseStreamingEngine(true); // Enable streaming when sort config is provided
+  };
+
+  const getAllAvailableColumns = () => {
+    const allSourceColumns = [...sourceColumns, ...sourceVirtualFields.map(vf => vf.name)];
+    const allTargetColumns = [...targetColumns, ...targetVirtualFields.map(vf => vf.name)];
+    return [...new Set([...allSourceColumns, ...allTargetColumns])];
+  };
+
+  // Validation variables
+  const canProceedToMapping = sourceFile && targetFile && sourceData.length > 0 && targetData.length > 0;
+  const canProceedToSortConfig = mappings.length > 0 && mappings.every(m => m.sourceColumn && m.targetColumn);
+  const canProceedToResults = sortConfiguration.sourceSortKey && sortConfiguration.targetSortKey && (sortConfiguration.toleranceUnit === 'exact' || sortConfiguration.tolerance > 0);
 
   if (currentStep === 'upload') {
     return (
@@ -182,42 +250,114 @@ const Index = () => {
               variant="hero" 
               size="lg"
               onClick={proceedToMapping}
-              disabled={!sourceFile || !targetFile}
+              disabled={!canProceedToMapping}
               className="px-8 py-4"
             >
               <ArrowRightLeft className="w-5 h-5 mr-2" />
               Proceed to Column Mapping
             </Button>
-            {(!sourceFile || !targetFile) && (
+            {!canProceedToMapping && (
               <p className="text-sm text-muted-foreground mt-3">
-                Please upload both files to continue
+                Please upload both files and ensure they have data to continue
               </p>
             )}
           </div>
 
           {/* Process Steps */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileSpreadsheet className="w-8 h-8 text-primary-foreground" />
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                currentStep === 'upload' ? 'bg-primary text-primary-foreground' : 
+                canProceedToMapping ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <FileSpreadsheet className="w-4 h-4" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">1. Upload Files</h3>
-              <p className="text-muted-foreground">Upload your Excel files with drag & drop support</p>
+              <span className={`font-medium ${
+                currentStep === 'upload' ? 'text-foreground' : 
+                canProceedToMapping ? 'text-success' : 'text-muted-foreground'
+              }`}>
+                Upload Files
+              </span>
             </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <ArrowRightLeft className="w-8 h-8 text-muted-foreground" />
+            <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                currentStep === 'mapping' ? 'bg-primary text-primary-foreground' : 
+                canProceedToSortConfig ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <ArrowRightLeft className="w-4 h-4" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">2. Map Columns</h3>
-              <p className="text-muted-foreground">Define relationships between your data columns</p>
+              <span className={`font-medium ${
+                currentStep === 'mapping' ? 'text-foreground' : 
+                canProceedToSortConfig ? 'text-success' : 'text-muted-foreground'
+              }`}>
+                Map Columns
+              </span>
             </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <BarChart3 className="w-8 h-8 text-muted-foreground" />
+            <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                currentStep === 'sort-config' ? 'bg-primary text-primary-foreground' : 
+                canProceedToResults ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <Zap className="w-4 h-4" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">3. Get Results</h3>
-              <p className="text-muted-foreground">Review detailed reconciliation reports</p>
+              <span className={`font-medium ${
+                currentStep === 'sort-config' ? 'text-foreground' : 
+                canProceedToResults ? 'text-success' : 'text-muted-foreground'
+              }`}>
+                Time-Based Matching
+              </span>
             </div>
+            <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                currentStep === 'results' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <span className={`font-medium ${
+                currentStep === 'results' ? 'text-foreground' : 'text-muted-foreground'
+              }`}>
+                View Results
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentStep === 'sort-config') {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-8">
+            <Button variant="outline" onClick={resetProcess}>
+              ← Back to Upload
+            </Button>
+          </div>
+          
+          <SortConfigurationPanel
+            sourceColumns={[...sourceColumns, ...sourceVirtualFields.map(vf => vf.name)]}
+            targetColumns={[...targetColumns, ...targetVirtualFields.map(vf => vf.name)]}
+            onConfigurationChange={handleSortConfigurationChange}
+            initialConfig={sortConfiguration}
+          />
+
+          <div className="flex justify-between mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentStep('mapping')}
+            >
+              Back to Mapping
+            </Button>
+            <Button 
+              onClick={handleSortConfigComplete}
+              disabled={!canProceedToResults}
+            >
+              Start Reconciliation
+            </Button>
           </div>
         </div>
       </div>
@@ -237,15 +377,12 @@ const Index = () => {
           <ColumnMapper
             sourceColumns={sourceColumns}
             targetColumns={targetColumns}
-            sourceFileName={sourceFile?.name || 'Source File'}
-            targetFileName={targetFile?.name || 'Target File'}
+            sourceFileName={sourceFile?.name || ''}
+            targetFileName={targetFile?.name || ''}
             onMappingsChange={setMappings}
             onVirtualFieldsChange={(sourceVFs, targetVFs) => {
               setSourceVirtualFields(sourceVFs);
               setTargetVirtualFields(targetVFs);
-            }}
-            onTransformationsChange={(transformations) => {
-              console.log('Transformations updated:', transformations);
             }}
             sampleData={{
               source: sourceData.slice(0, 5),
@@ -253,7 +390,113 @@ const Index = () => {
             }}
           />
 
-          <div className="text-center mt-8">
+          <div className="flex justify-between mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentStep('upload')}
+            >
+              Back to Upload
+            </Button>
+          </div>
+
+          {/* Reconciliation Engine Selection */}
+          <Card className="p-6 mt-8 mb-6">
+            <h3 className="text-lg font-semibold mb-4">Reconciliation Engine</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div 
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  !useStreamingEngine 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => setUseStreamingEngine(false)}
+              >
+                <div className="flex items-center mb-2">
+                  <Database className="w-5 h-5 mr-2" />
+                  <span className="font-medium">Standard Engine</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Best for small to medium datasets (&lt;50K records). Loads all data into memory for fast processing.
+                </p>
+              </div>
+              
+              <div 
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  useStreamingEngine 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => setUseStreamingEngine(true)}
+              >
+                <div className="flex items-center mb-2">
+                  <Zap className="w-5 h-5 mr-2" />
+                  <span className="font-medium">Memory-Efficient Engine</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ideal for large datasets (&gt;50K records). Uses streaming and two-pointer algorithm for minimal memory usage.
+                </p>
+                
+                {/* Time-Based Matching Configuration Note */}
+                {useStreamingEngine && (
+                  <div 
+                    className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer hover:bg-blue-100 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Time-Based Matching clicked', { canProceedToMapping, canProceedToSortConfig });
+                      if (canProceedToSortConfig) {
+                        console.log('Navigating to sort-config');
+                        setCurrentStep('sort-config');
+                      } else if (canProceedToMapping) {
+                        console.log('Navigating to mapping');
+                        setCurrentStep('mapping');
+                      }
+                    }}
+                  >
+                    <p className="text-xs text-blue-700 font-medium">
+                      📅 Time-Based Matching Available
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {canProceedToSortConfig 
+                        ? 'Click to configure time-based matching →'
+                        : canProceedToMapping 
+                        ? 'Click to start column mapping →' 
+                        : 'Upload both files first to enable mapping'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+          </Card>
+
+          {/* Progress Display */}
+          {isProcessing && (
+            <Card className="p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4">Processing Progress</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span>{processingProgress.stage}</span>
+                  <span>{Math.round(processingProgress.processed)}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${processingProgress.processed}%` }}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <div className="flex justify-between mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentStep('sort-config')}
+              disabled={isProcessing}
+            >
+              Back to Configuration
+            </Button>
             <Button 
               variant="hero" 
               size="lg"
