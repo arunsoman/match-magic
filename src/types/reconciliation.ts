@@ -32,9 +32,13 @@ export interface TransformedData {
 
 export interface ReconciliationResult {
   id: string;
-  sourceRow: Record<string, any>;
-  targetRow?: Record<string, any>;
+  sourceRow: Record<string, any> | null;
+  targetRow?: Record<string, any> | null;
   status: 'matched' | 'unmatched-source' | 'unmatched-target' | 'discrepancy';
+  matchType?: 'exact' | 'fuzzy' | 'unmatched_source' | 'unmatched_target';
+  confidence?: number;
+  differences?: Array<{ field: string; sourceValue: any; targetValue: any; difference: any }>;
+  amount?: number;
   discrepancies?: string[];
   transformations?: {
     source?: string[];
