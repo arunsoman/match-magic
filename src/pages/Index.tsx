@@ -244,6 +244,13 @@ const Index = () => {
               setSourceVirtualFields(sourceVFs);
               setTargetVirtualFields(targetVFs);
             }}
+            onTransformationsChange={(transformations) => {
+              console.log('Transformations updated:', transformations);
+            }}
+            sampleData={{
+              source: sourceData.slice(0, 5),
+              target: targetData.slice(0, 5)
+            }}
           />
 
           <div className="text-center mt-8">

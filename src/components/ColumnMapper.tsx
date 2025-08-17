@@ -6,9 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Plus, Trash2, Save, Calculator, Lightbulb, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ColumnMapping, VirtualField } from '@/types/reconciliation';
+import { TransformationPipeline } from '@/types/transformations';
 import { FormulaMapper } from '@/components/FormulaMapper';
 import { VirtualFieldManager } from '@/components/VirtualFieldManager';
 import { VirtualFieldBuilder } from '@/components/VirtualFieldBuilder';
+import { TransformationBuilder } from '@/components/TransformationBuilder';
+import { TransformationCard } from '@/components/TransformationCard';
 import { DataTransformer } from '@/utils/dataTransformation';
 
 interface ColumnMapperProps {
@@ -18,6 +21,8 @@ interface ColumnMapperProps {
   targetFileName: string;
   onMappingsChange: (mappings: ColumnMapping[]) => void;
   onVirtualFieldsChange?: (sourceVFs: VirtualField[], targetVFs: VirtualField[]) => void;
+  onTransformationsChange?: (transformations: TransformationPipeline[]) => void;
+  sampleData?: { source: Record<string, any>[]; target: Record<string, any>[] };
   className?: string;
 }
 
@@ -28,6 +33,8 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   targetFileName,
   onMappingsChange,
   onVirtualFieldsChange,
+  onTransformationsChange,
+  sampleData,
   className
 }) => {
   const [mappings, setMappings] = useState<ColumnMapping[]>([
@@ -41,9 +48,13 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   
   const [suggestions, setSuggestions] = useState<Partial<ColumnMapping>[]>([]);
   const [virtualFields, setVirtualFields] = useState<VirtualField[]>([]);
+  const [transformations, setTransformations] = useState<TransformationPipeline[]>([]);
   const [showVirtualFieldDialog, setShowVirtualFieldDialog] = useState(false);
+  const [showTransformationDialog, setShowTransformationDialog] = useState(false);
   const [editingVirtualField, setEditingVirtualField] = useState<VirtualField | null>(null);
+  const [editingTransformation, setEditingTransformation] = useState<TransformationPipeline | null>(null);
   const [virtualFieldSourceFile, setVirtualFieldSourceFile] = useState<'source' | 'target'>('source');
+  const [transformationSourceFile, setTransformationSourceFile] = useState<'source' | 'target'>('source');
 
   useEffect(() => {
     // Get formula suggestions when columns change
@@ -109,42 +120,94 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
 
   const allMappingsValid = mappings.every(isValidMapping);
 
-  // Virtual field handlers
+  // Handle virtual field operations
   const handleCreateVirtualField = (sourceFile: 'source' | 'target') => {
     setVirtualFieldSourceFile(sourceFile);
     setEditingVirtualField(null);
     setShowVirtualFieldDialog(true);
   };
 
-  const handleEditVirtualField = (field: VirtualField) => {
-    setEditingVirtualField(field);
-    setVirtualFieldSourceFile(field.sourceFile);
+  const handleEditVirtualField = (virtualField: VirtualField) => {
+    setEditingVirtualField(virtualField);
+    setVirtualFieldSourceFile(virtualField.sourceFile);
     setShowVirtualFieldDialog(true);
   };
 
-  const handleDeleteVirtualField = (fieldId: string) => {
-    setVirtualFields(prev => prev.filter(f => f.id !== fieldId));
+  const handleDeleteVirtualField = (virtualFieldId: string) => {
+    const updatedVirtualFields = virtualFields.filter(vf => vf.id !== virtualFieldId);
+    setVirtualFields(updatedVirtualFields);
+    
+    if (onVirtualFieldsChange) {
+      const sourceVFs = updatedVirtualFields.filter(vf => vf.sourceFile === 'source');
+      const targetVFs = updatedVirtualFields.filter(vf => vf.sourceFile === 'target');
+      onVirtualFieldsChange(sourceVFs, targetVFs);
+    }
   };
 
-  const handleSaveVirtualField = (field: VirtualField) => {
-    setVirtualFields(prev => {
-      const existing = prev.find(f => f.id === field.id);
-      let newVirtualFields;
-      if (existing) {
-        newVirtualFields = prev.map(f => f.id === field.id ? field : f);
-      } else {
-        newVirtualFields = [...prev, field];
-      }
-      
-      // Notify parent component
-      if (onVirtualFieldsChange) {
-        const sourceVFs = newVirtualFields.filter(f => f.sourceFile === 'source');
-        const targetVFs = newVirtualFields.filter(f => f.sourceFile === 'target');
-        onVirtualFieldsChange(sourceVFs, targetVFs);
-      }
-      
-      return newVirtualFields;
-    });
+  const handleSaveVirtualField = (virtualField: VirtualField) => {
+    let updatedVirtualFields: VirtualField[];
+    
+    if (editingVirtualField) {
+      updatedVirtualFields = virtualFields.map(vf => 
+        vf.id === editingVirtualField.id ? virtualField : vf
+      );
+    } else {
+      updatedVirtualFields = [...virtualFields, virtualField];
+    }
+    
+    setVirtualFields(updatedVirtualFields);
+    
+    if (onVirtualFieldsChange) {
+      const sourceVFs = updatedVirtualFields.filter(vf => vf.sourceFile === 'source');
+      const targetVFs = updatedVirtualFields.filter(vf => vf.sourceFile === 'target');
+      onVirtualFieldsChange(sourceVFs, targetVFs);
+    }
+    
+    setShowVirtualFieldDialog(false);
+    setEditingVirtualField(null);
+  };
+
+  // Handle transformation operations
+  const handleCreateTransformation = (sourceFile: 'source' | 'target') => {
+    setTransformationSourceFile(sourceFile);
+    setEditingTransformation(null);
+    setShowTransformationDialog(true);
+  };
+
+  const handleEditTransformation = (transformation: TransformationPipeline) => {
+    setEditingTransformation(transformation);
+    setTransformationSourceFile(transformation.sourceFile);
+    setShowTransformationDialog(true);
+  };
+
+  const handleDeleteTransformation = (transformationId: string) => {
+    const updatedTransformations = transformations.filter(t => t.id !== transformationId);
+    setTransformations(updatedTransformations);
+    
+    if (onTransformationsChange) {
+      onTransformationsChange(updatedTransformations);
+    }
+  };
+
+  const handleSaveTransformation = (transformation: TransformationPipeline) => {
+    let updatedTransformations: TransformationPipeline[];
+    
+    if (editingTransformation) {
+      updatedTransformations = transformations.map(t => 
+        t.id === editingTransformation.id ? transformation : t
+      );
+    } else {
+      updatedTransformations = [...transformations, transformation];
+    }
+    
+    setTransformations(updatedTransformations);
+    
+    if (onTransformationsChange) {
+      onTransformationsChange(updatedTransformations);
+    }
+    
+    setShowTransformationDialog(false);
+    setEditingTransformation(null);
   };
 
   const canCreateVirtualField = (sourceFile: 'source' | 'target') => {
@@ -168,9 +231,10 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
         </div>
 
 
-        {/* Virtual Fields Section */}
-        {(virtualFields.length > 0 || true) && (
-          <div className="mb-6 p-4 bg-accent/5 rounded-lg border border-border/50">
+        {/* Data Processing Section */}
+        <div className="mb-6 space-y-4">
+          {/* Virtual Fields */}
+          <div className="p-4 bg-accent/5 rounded-lg border border-border/50">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
@@ -223,7 +287,82 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
               </p>
             )}
           </div>
-        )}
+
+          {/* Transformations */}
+          <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-blue-600" />
+                Data Transformations
+              </h4>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTransformation('source')}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Source
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTransformation('target')}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Target
+                </Button>
+              </div>
+            </div>
+            
+            {transformations.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Source Transformations</h5>
+                  {transformations
+                    .filter(t => t.sourceFile === 'source')
+                    .map(transformation => (
+                      <TransformationCard
+                        key={transformation.id}
+                        transformation={transformation}
+                        onEdit={handleEditTransformation}
+                        onDelete={handleDeleteTransformation}
+                      />
+                    ))
+                  }
+                  {transformations.filter(t => t.sourceFile === 'source').length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No source transformations
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Target Transformations</h5>
+                  {transformations
+                    .filter(t => t.sourceFile === 'target')
+                    .map(transformation => (
+                      <TransformationCard
+                        key={transformation.id}
+                        transformation={transformation}
+                        onEdit={handleEditTransformation}
+                        onDelete={handleDeleteTransformation}
+                      />
+                    ))
+                  }
+                  {transformations.filter(t => t.sourceFile === 'target').length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No target transformations</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No transformations created yet. Click the buttons above to create data preprocessing pipelines.
+              </p>
+            )}
+          </div>
+        </div>
 
         <div className="space-y-4">
           {/* Header */}
@@ -378,9 +517,19 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
           onClose={() => setShowVirtualFieldDialog(false)}
           onSave={handleSaveVirtualField}
           availableColumns={virtualFieldSourceFile === 'source' ? sourceColumns : targetColumns}
+          initialVirtualField={editingVirtualField}
           sourceFile={virtualFieldSourceFile}
-          editingField={editingVirtualField}
-          sampleData={[]} // TODO: Pass actual sample data when available
+        />
+
+        {/* Transformation Builder Dialog */}
+        <TransformationBuilder
+          isOpen={showTransformationDialog}
+          onClose={() => setShowTransformationDialog(false)}
+          onSave={handleSaveTransformation}
+          availableColumns={transformationSourceFile === 'source' ? [...sourceColumns, ...virtualFields.filter(vf => vf.sourceFile === 'source').map(vf => vf.name)] : [...targetColumns, ...virtualFields.filter(vf => vf.sourceFile === 'target').map(vf => vf.name)]}
+          sampleData={sampleData?.[transformationSourceFile] || []}
+          initialPipeline={editingTransformation}
+          sourceFile={transformationSourceFile}
         />
       </div>
     </Card>
