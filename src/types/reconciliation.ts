@@ -35,6 +35,9 @@ export interface ReconciliationResult {
   sourceRow: Record<string, any>;
   targetRow?: Record<string, any>;
   status: 'matched' | 'unmatched-source' | 'unmatched-target' | 'discrepancy';
+  confidence?: number;
+  differences?: string[];
+  amount?: number;
   discrepancies?: string[];
   transformations?: {
     source?: string[];

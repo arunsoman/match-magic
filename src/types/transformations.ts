@@ -397,7 +397,7 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
   conditional: {
     name: 'Conditional Logic',
     description: 'Apply if-then-else transformations based on conditions',
-    category: 'logic',
+    category: 'custom',
     parameters: [
       {
         name: 'condition',
@@ -460,7 +460,7 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
   fill_null: {
     name: 'Fill Missing Values',
     description: 'Replace null, undefined, or empty values with defaults',
-    category: 'data_quality',
+    category: 'custom',
     parameters: [
       {
         name: 'fillValue',
@@ -488,7 +488,7 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
   flag_missing: {
     name: 'Flag Missing Data',
     description: 'Add flag indicating if original value was missing',
-    category: 'data_quality',
+    category: 'custom',
     parameters: [
       {
         name: 'flagValue',
@@ -514,7 +514,7 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
   exclude_if_null: {
     name: 'Exclude Missing Data',
     description: 'Mark rows for exclusion if value is missing',
-    category: 'data_quality',
+    category: 'custom',
     parameters: [
       {
         name: 'threshold',
@@ -627,7 +627,7 @@ export const BUILT_IN_PRESETS: TransformationPreset[] = [
     id: 'expense-income-categorizer',
     name: 'Expense/Income Categorizer',
     description: 'Categorize amounts as Expense or Income based on value',
-    category: 'logic',
+    category: 'custom',
     isBuiltIn: true,
     usageCount: 0,
     tags: ['conditional', 'categorize', 'expense', 'income'],
@@ -655,7 +655,7 @@ export const BUILT_IN_PRESETS: TransformationPreset[] = [
     id: 'data-quality-cleanup',
     name: 'Data Quality Cleanup',
     description: 'Handle missing values and improve data quality',
-    category: 'data_quality',
+    category: 'custom',
     isBuiltIn: true,
     usageCount: 0,
     tags: ['missing', 'null', 'quality', 'cleanup'],

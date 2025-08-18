@@ -5,8 +5,9 @@ import { FileUpload } from '@/components/FileUpload';
 import { ColumnMapper } from '@/components/ColumnMapper';
 import { SortConfigurationPanel, SortConfiguration } from '@/components/SortConfigurationPanel';
 import { ReconciliationResults } from '@/components/ReconciliationResults';
-import { CheckCircle, FileSpreadsheet, ArrowRightLeft, BarChart3, Shield, Clock, Zap, Database } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, ArrowRightLeft, BarChart3, Shield, Clock, Zap, Database, Settings } from 'lucide-react';
 import { ColumnMapping, VirtualField, ReconciliationResult } from '@/types/reconciliation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ReconciliationEngine } from '@/utils/reconciliationEngine';
 import { StreamingReconciliationEngine } from '@/utils/streamingReconciliationEngine';
 import * as XLSX from 'xlsx';
@@ -36,6 +37,7 @@ const Index = () => {
     timeDirection: 'bidirectional'
   });
   const [processingProgress, setProcessingProgress] = useState({ processed: 0, total: 100, stage: '' });
+  const [showSortConfigModal, setShowSortConfigModal] = useState(false);
 
   const handleFileSelect = (type: 'source' | 'target') => async (file: File) => {
     try {
@@ -449,34 +451,58 @@ const Index = () => {
                   Ideal for large datasets (&gt;50K records). Uses streaming and two-pointer algorithm for minimal memory usage.
                 </p>
                 
-                {/* Time-Based Matching Configuration Note */}
+                {/* Time-Based Matching Configuration */}
                 {useStreamingEngine && (
-                  <div 
-                    className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer hover:bg-blue-100 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      console.log('Time-Based Matching clicked', { canProceedToMapping, canProceedToSortConfig });
-                      if (canProceedToSortConfig) {
-                        console.log('Navigating to sort-config');
-                        setCurrentStep('sort-config');
-                      } else if (canProceedToMapping) {
-                        console.log('Navigating to mapping');
-                        setCurrentStep('mapping');
-                      }
-                    }}
-                  >
-                    <p className="text-xs text-blue-700 font-medium">
-                      📅 Time-Based Matching Available
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      {canProceedToSortConfig 
-                        ? 'Click to configure time-based matching →'
-                        : canProceedToMapping 
-                        ? 'Click to start column mapping →' 
-                        : 'Upload both files first to enable mapping'
-                      }
-                    </p>
-                  </div>
+                  <Dialog open={showSortConfigModal} onOpenChange={setShowSortConfigModal}>
+                    <DialogTrigger asChild>
+                      <div 
+                        className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center cursor-pointer hover:bg-primary/20 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canProceedToSortConfig) {
+                            setShowSortConfigModal(true);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <Settings className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium text-primary">
+                            configure
+                          </span>
+                        </div>
+                      </div>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Sort & Tolerance Configuration</DialogTitle>
+                      </DialogHeader>
+                      <SortConfigurationPanel
+                        sourceColumns={[...sourceColumns, ...sourceVirtualFields.map(vf => vf.name)]}
+                        targetColumns={[...targetColumns, ...targetVirtualFields.map(vf => vf.name)]}
+                        onConfigurationChange={handleSortConfigurationChange}
+                        initialConfig={sortConfiguration}
+                      />
+                      <div className="flex justify-end gap-2 mt-6">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setShowSortConfigModal(false)}
+                        >
+                          Close
+                        </Button>
+                        <Button 
+                          onClick={() => {
+                            setShowSortConfigModal(false);
+                            if (canProceedToResults) {
+                              startReconciliation();
+                            }
+                          }}
+                          disabled={!canProceedToResults}
+                        >
+                          Start Reconciliation
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 )}
               </div>
             </div>

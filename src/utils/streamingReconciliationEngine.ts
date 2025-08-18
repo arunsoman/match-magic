@@ -280,7 +280,7 @@ export class StreamingReconciliationEngine {
     
     // Advance past all records with the same sort value
     while (nextIndex < sortedArray.length && 
-           this.compareSortValues(sortedArray[nextIndex].sortValue, currentValue, tolerance) === 0) {
+           this.compareSortValues(sortedArray[nextIndex].sortValue, currentValue, tolerance, 'exact') === 0) {
       nextIndex++;
     }
     
@@ -315,7 +315,6 @@ export class StreamingReconciliationEngine {
       id: this.generateId(),
       sourceRow: sourceRecord.transformedRow,
       targetRow: targetRecord.transformedRow,
-      matchType: confidence > 0.9 ? 'exact' : 'fuzzy',
       confidence,
       differences,
       amount: this.extractAmount(sourceRecord.transformedRow, mappings),
@@ -668,9 +667,11 @@ export class StreamingReconciliationEngine {
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = sourceRow[mapping.sourceColumn];
-      const targetValue = targetRow[mapping.targetColumn];
-      const weight = this.getFieldWeight(mapping.sourceColumn);
+      const sourceColumn = Array.isArray(mapping.sourceColumn) ? mapping.sourceColumn[0] : mapping.sourceColumn;
+      const targetColumn = mapping.targetColumn;
+      const sourceValue = sourceRow[sourceColumn!];
+      const targetValue = targetRow[targetColumn!];
+      const weight = this.getFieldWeight(sourceColumn!);
 
       totalWeight += weight;
 
@@ -731,7 +732,7 @@ export class StreamingReconciliationEngine {
   private static extractAmount(row: Record<string, any>, mappings: ColumnMapping[]): number {
     for (const mapping of mappings) {
       const column = mapping.sourceColumn || mapping.targetColumn;
-      if (column && column.toLowerCase().includes('amount')) {
+      if (column && typeof column === 'string' && column.toLowerCase().includes('amount')) {
         return this.parseNumeric(row[column]);
       }
     }
@@ -750,7 +751,6 @@ export class StreamingReconciliationEngine {
       id: this.generateId(),
       sourceRow: sourceRecord.transformedRow,
       targetRow: targetRecord.transformedRow,
-      matchType: confidence > 0.9 ? 'exact' : 'fuzzy',
       confidence,
       differences,
       amount: this.extractAmount(sourceRecord.transformedRow, mappings),
@@ -766,11 +766,10 @@ export class StreamingReconciliationEngine {
       id: this.generateId(),
       sourceRow: sourceRecord.transformedRow,
       targetRow: null,
-      matchType: 'unmatched_source',
       confidence: 0,
       differences: [],
       amount: this.extractAmount(sourceRecord.transformedRow, mappings),
-      status: 'unmatched'
+      status: 'unmatched-source'
     };
   }
 
@@ -782,11 +781,10 @@ export class StreamingReconciliationEngine {
       id: this.generateId(),
       sourceRow: null,
       targetRow: targetRecord.transformedRow,
-      matchType: 'unmatched_target',
       confidence: 0,
       differences: [],
       amount: this.extractAmount(targetRecord.transformedRow, mappings),
-      status: 'unmatched'
+      status: 'unmatched-target'
     };
   }
 
@@ -800,8 +798,10 @@ export class StreamingReconciliationEngine {
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = sourceRow[mapping.sourceColumn];
-      const targetValue = targetRow[mapping.targetColumn];
+      const sourceColumn = Array.isArray(mapping.sourceColumn) ? mapping.sourceColumn[0] : mapping.sourceColumn;
+      const targetColumn = mapping.targetColumn;
+      const sourceValue = sourceRow[sourceColumn!];
+      const targetValue = targetRow[targetColumn!];
 
       if (sourceValue !== targetValue) {
         differences.push(`${mapping.sourceColumn}: ${sourceValue} ≠ ${targetValue}`);
