@@ -517,7 +517,8 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
           onClose={() => setShowVirtualFieldDialog(false)}
           onSave={handleSaveVirtualField}
           availableColumns={virtualFieldSourceFile === 'source' ? sourceColumns : targetColumns}
-          initialVirtualField={editingVirtualField}
+          editingField={editingVirtualField}
+          sampleData={virtualFieldSourceFile === 'source' ? sampleData.source : sampleData.target}
           sourceFile={virtualFieldSourceFile}
         />
 

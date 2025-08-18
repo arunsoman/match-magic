@@ -27,8 +27,8 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
   const stats = {
     total: results.length,
     matched: results.filter(r => r.status === 'matched').length,
-    unmatchedSource: results.filter(r => r.matchType === 'unmatched_source' || r.status === 'unmatched-source').length,
-    unmatchedTarget: results.filter(r => r.matchType === 'unmatched_target' || r.status === 'unmatched-target').length,
+    unmatchedSource: results.filter(r => r.status === 'unmatched-source').length,
+    unmatchedTarget: results.filter(r => r.status === 'unmatched-target').length,
     discrepancies: results.filter(r => r.status === 'discrepancy').length
   };
 
@@ -70,10 +70,10 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
   const filteredResults = (status?: string) => {
     if (!status) return results;
     if (status === 'unmatched-source') {
-      return results.filter(r => r.matchType === 'unmatched_source' || r.status === 'unmatched-source');
+      return results.filter(r => r.status === 'unmatched-source');
     }
     if (status === 'unmatched-target') {
-      return results.filter(r => r.matchType === 'unmatched_target' || r.status === 'unmatched-target');
+      return results.filter(r => r.status === 'unmatched-target');
     }
     return results.filter(r => r.status === status);
   };

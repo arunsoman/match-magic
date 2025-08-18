@@ -63,11 +63,7 @@ export class ReconciliationEngine {
           id: this.generateId(),
           sourceRow: sourceItem.transformedRow,
           targetRow: null,
-          matchType: 'unmatched_source',
-          confidence: 0,
-          differences: [],
-          amount: this.extractAmount(sourceItem.transformedRow, mappings),
-          status: 'unmatched'
+          status: 'unmatched-source'
         });
       } else {
         // Process matches
@@ -82,10 +78,6 @@ export class ReconciliationEngine {
             id: this.generateId(),
             sourceRow: sourceItem.transformedRow,
             targetRow: match.targetItem.transformedRow,
-            matchType: match.confidence > 0.9 ? 'exact' : 'fuzzy',
-            confidence: match.confidence,
-            differences,
-            amount: this.extractAmount(sourceItem.transformedRow, mappings),
             status: differences.length === 0 ? 'matched' : 'discrepancy'
           });
         }
@@ -106,11 +98,7 @@ export class ReconciliationEngine {
           id: this.generateId(),
           sourceRow: null,
           targetRow: targetItem.transformedRow,
-          matchType: 'unmatched_target',
-          confidence: 0,
-          differences: [],
-          amount: this.extractAmount(targetItem.transformedRow, mappings),
-          status: 'unmatched'
+          status: 'unmatched-target'
         });
       }
     }
@@ -178,9 +166,11 @@ export class ReconciliationEngine {
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = sourceRow[mapping.sourceColumn];
+      const sourceValue = Array.isArray(mapping.sourceColumn) 
+        ? mapping.sourceColumn.map(col => sourceRow[col]).join(' ')
+        : sourceRow[mapping.sourceColumn];
       const targetValue = targetRow[mapping.targetColumn];
-      const weight = this.getFieldWeight(mapping.sourceColumn);
+      const weight = this.getFieldWeight(Array.isArray(mapping.sourceColumn) ? mapping.sourceColumn[0] : mapping.sourceColumn);
 
       totalWeight += weight;
 
@@ -267,7 +257,9 @@ export class ReconciliationEngine {
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = sourceRow[mapping.sourceColumn];
+      const sourceValue = Array.isArray(mapping.sourceColumn) 
+        ? mapping.sourceColumn.map(col => sourceRow[col]).join(' ')
+        : sourceRow[mapping.sourceColumn];
       const targetValue = targetRow[mapping.targetColumn];
 
       if (sourceValue !== targetValue) {
@@ -311,8 +303,8 @@ export class ReconciliationEngine {
       const sourceCol = mapping.sourceColumn;
       const targetCol = mapping.targetColumn;
       
-      if (sourceCol && amountColumns.some(ac => sourceCol.toLowerCase().includes(ac))) {
-        const value = row[sourceCol];
+      if (sourceCol && typeof sourceCol === 'string' && amountColumns.some(ac => sourceCol.toLowerCase().includes(ac))) {
+        const value = typeof sourceCol === 'string' ? row[sourceCol] : 0;
         if (typeof value === 'number') return value;
       }
       
@@ -328,7 +320,10 @@ export class ReconciliationEngine {
   /**
    * Get field weight for confidence calculation
    */
-  private static getFieldWeight(fieldName: string): number {
+  private static getFieldWeight(fieldName: string | string[]): number {
+    if (Array.isArray(fieldName)) {
+      fieldName = fieldName[0]; // Use first field for weight calculation
+    }
     const lowerField = fieldName.toLowerCase();
     
     // High importance fields

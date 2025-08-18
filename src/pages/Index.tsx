@@ -27,11 +27,13 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [useStreamingEngine, setUseStreamingEngine] = useState(false);
   const [sortConfiguration, setSortConfiguration] = useState<SortConfiguration>({
-    sortKey: '',
+    sourceSortKey: '',
+    targetSortKey: '',
     tolerance: 0,
     toleranceUnit: 'exact',
     matchStrategy: 'smart',
-    chunkSize: 10000
+    chunkSize: 10000,
+    timeDirection: 'bidirectional'
   });
   const [processingProgress, setProcessingProgress] = useState({ processed: 0, total: 100, stage: '' });
 
@@ -114,9 +116,12 @@ const Index = () => {
           mappings,
           config: {
             tolerance,
+            toleranceUnit: sortConfiguration.toleranceUnit,
             matchStrategy: sortConfiguration.matchStrategy,
             chunkSize: sortConfiguration.chunkSize,
-            sortKey: sortConfiguration.sortKey
+            sourceSortKey: sortConfiguration.sourceSortKey,
+            targetSortKey: sortConfiguration.targetSortKey,
+            timeDirection: sortConfiguration.timeDirection
           },
           onProgress: setProcessingProgress
         });
@@ -282,43 +287,41 @@ const Index = () => {
             <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
             <div className="flex items-center gap-4">
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                currentStep === 'mapping' ? 'bg-primary text-primary-foreground' : 
-                canProceedToSortConfig ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+                canProceedToMapping ? 'bg-muted text-muted-foreground' : 'bg-muted text-muted-foreground'
               }`}>
                 <ArrowRightLeft className="w-4 h-4" />
               </div>
               <span className={`font-medium ${
-                currentStep === 'mapping' ? 'text-foreground' : 
-                canProceedToSortConfig ? 'text-success' : 'text-muted-foreground'
+                canProceedToMapping ? 'text-muted-foreground' : 'text-muted-foreground'
               }`}>
                 Map Columns
               </span>
             </div>
             <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
-            <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              className="flex items-center gap-4 p-4 h-auto cursor-pointer transition-all hover:bg-primary/5"
+              onClick={() => canProceedToMapping && setCurrentStep('mapping')}
+              disabled={!canProceedToMapping}
+            >
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                currentStep === 'sort-config' ? 'bg-primary text-primary-foreground' : 
-                canProceedToResults ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+                canProceedToMapping ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
               }`}>
                 <Zap className="w-4 h-4" />
               </div>
               <span className={`font-medium ${
-                currentStep === 'sort-config' ? 'text-foreground' : 
-                canProceedToResults ? 'text-success' : 'text-muted-foreground'
+                canProceedToMapping ? 'text-primary' : 'text-muted-foreground'
               }`}>
-                Time-Based Matching
+                Time-Based Matching Available
+                <div className="text-sm text-muted-foreground">Click to start column mapping →</div>
               </span>
-            </div>
+            </Button>
             <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
             <div className="flex items-center gap-4">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                currentStep === 'results' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground`}>
                 <BarChart3 className="w-4 h-4" />
               </div>
-              <span className={`font-medium ${
-                currentStep === 'results' ? 'text-foreground' : 'text-muted-foreground'
-              }`}>
+              <span className={`font-medium text-muted-foreground`}>
                 View Results
               </span>
             </div>
@@ -391,12 +394,22 @@ const Index = () => {
           />
 
           <div className="flex justify-between mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => setCurrentStep('upload')}
-            >
-              Back to Upload
-            </Button>
+            <div className="flex gap-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setCurrentStep('upload')}
+              >
+                Back to Upload
+              </Button>
+              {canProceedToSortConfig && (
+                <Button 
+                  onClick={handleMappingComplete}
+                  className="ml-auto"
+                >
+                  Proceed to Time-Based Matching
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Reconciliation Engine Selection */}
