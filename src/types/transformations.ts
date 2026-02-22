@@ -1,6 +1,6 @@
 // Transformation system types for batch data preprocessing
 
-export type TransformationType = 
+export type TransformationType =
   | 'clean_string'
   | 'trim'
   | 'lowercase'
@@ -38,6 +38,7 @@ export interface TransformationPipeline {
   name: string;
   description?: string;
   columnId: string;
+  outputColumn?: string;
   sourceFile: 'source' | 'target';
   steps: TransformationStep[];
   createdAt: Date;
@@ -164,7 +165,9 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
           { label: 'MM/DD/YYYY', value: 'MM/DD/YYYY' },
           { label: 'DD/MM/YYYY', value: 'DD/MM/YYYY' },
           { label: 'YYYY-MM-DD', value: 'YYYY-MM-DD' },
-          { label: 'DD-MM-YYYY', value: 'DD-MM-YYYY' }
+          { label: 'DD-MM-YYYY', value: 'DD-MM-YYYY' },
+          { label: 'DD-MM-YYYY HH:mm', value: 'DD-MM-YYYY HH:mm' },
+          { label: 'MM-DD-YYYY HH:mm', value: 'MM-DD-YYYY HH:mm' }
         ],
         default: 'auto',
         description: 'Expected input date format'
@@ -251,7 +254,9 @@ export const TRANSFORMATION_CONFIGS: Record<TransformationType, {
           { label: 'YYYY-MM-DD', value: 'YYYY-MM-DD' },
           { label: 'MM/DD/YYYY', value: 'MM/DD/YYYY' },
           { label: 'DD/MM/YYYY', value: 'DD/MM/YYYY' },
-          { label: 'YYYY-MM-DD HH:mm:ss', value: 'YYYY-MM-DD HH:mm:ss' }
+          { label: 'YYYY-MM-DD HH:mm:ss', value: 'YYYY-MM-DD HH:mm:ss' },
+          { label: 'DD-MM-YYYY HH:mm', value: 'DD-MM-YYYY HH:mm' },
+          { label: 'MM-DD-YYYY HH:mm', value: 'MM-DD-YYYY HH:mm' }
         ],
         default: 'YYYY-MM-DD',
         description: 'Output date format'

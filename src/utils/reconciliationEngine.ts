@@ -12,6 +12,7 @@ export interface ReconciliationInput {
   targetData: Record<string, any>[];
   sourceVirtualFields: VirtualField[];
   targetVirtualFields: VirtualField[];
+  transformations?: import('@/types/transformations').TransformationPipeline[];
   mappings: ColumnMapping[];
   config: ReconciliationConfig;
 }
@@ -26,29 +27,32 @@ export class ReconciliationEngine {
       targetData,
       sourceVirtualFields,
       targetVirtualFields,
+      transformations = [],
       mappings,
       config
     } = input;
 
-    // Transform source data with virtual fields
+    const sourceTransformations = transformations.filter(t => t.sourceFile === 'source');
     const transformedSource = DataTransformer.transformDataWithVirtualFields(
       sourceData,
       sourceVirtualFields,
       mappings.filter(m => m.sourceColumn),
-      true
+      true,
+      sourceTransformations
     );
 
-    // Transform target data with virtual fields
+    const targetTransformations = transformations.filter(t => t.sourceFile === 'target');
     const transformedTarget = DataTransformer.transformDataWithVirtualFields(
       targetData,
       targetVirtualFields,
       mappings.filter(m => m.targetColumn),
-      false
+      false,
+      targetTransformations
     );
 
     // Perform matching based on mappings
     const results: ReconciliationResult[] = [];
-    
+
     for (const sourceItem of transformedSource) {
       const matches = this.findMatches(
         sourceItem,
@@ -63,22 +67,29 @@ export class ReconciliationEngine {
           id: this.generateId(),
           sourceRow: sourceItem.transformedRow,
           targetRow: null,
+          sourceLine: sourceItem.transformedRow.__line,
+          targetLine: undefined,
           status: 'unmatched-source'
         });
       } else {
         // Process matches
         for (const match of matches) {
-          const differences = this.calculateDifferences(
+          const discrepancies = this.calculateDiscrepancies(
             sourceItem.transformedRow,
             match.targetItem.transformedRow,
-            mappings
+            mappings,
+            config
           );
 
           results.push({
             id: this.generateId(),
             sourceRow: sourceItem.transformedRow,
             targetRow: match.targetItem.transformedRow,
-            status: differences.length === 0 ? 'matched' : 'discrepancy'
+            sourceLine: sourceItem.transformedRow.__line,
+            targetLine: match.targetItem.transformedRow.__line,
+            confidence: match.confidence,
+            discrepancies,
+            status: discrepancies.length === 0 ? 'matched' : 'discrepancy'
           });
         }
       }
@@ -98,6 +109,8 @@ export class ReconciliationEngine {
           id: this.generateId(),
           sourceRow: null,
           targetRow: targetItem.transformedRow,
+          sourceLine: undefined,
+          targetLine: targetItem.transformedRow.__line,
           status: 'unmatched-target'
         });
       }
@@ -166,7 +179,7 @@ export class ReconciliationEngine {
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = Array.isArray(mapping.sourceColumn) 
+      const sourceValue = Array.isArray(mapping.sourceColumn)
         ? mapping.sourceColumn.map(col => sourceRow[col]).join(' ')
         : sourceRow[mapping.sourceColumn];
       const targetValue = targetRow[mapping.targetColumn];
@@ -184,7 +197,7 @@ export class ReconciliationEngine {
 
     const confidence = totalWeight > 0 ? matchedWeight / totalWeight : 0;
     console.log(`Final confidence: ${confidence} (${matchedWeight}/${totalWeight})`);
-    
+
     return confidence;
   }
 
@@ -212,8 +225,8 @@ export class ReconciliationEngine {
 
     // Handle dates
     if (this.isDate(value1) && this.isDate(value2)) {
-      const date1 = new Date(value1);
-      const date2 = new Date(value2);
+      const date1 = this.parseDate(value1);
+      const date2 = this.parseDate(value2);
       return date1.getTime() === date2.getTime();
     }
 
@@ -245,41 +258,48 @@ export class ReconciliationEngine {
   }
 
   /**
-   * Calculate differences between matched rows
+   * Calculate discrepancies between matched rows
    */
-  private static calculateDifferences(
+  private static calculateDiscrepancies(
     sourceRow: Record<string, any>,
     targetRow: Record<string, any>,
-    mappings: ColumnMapping[]
-  ): Array<{ field: string; sourceValue: any; targetValue: any; difference: any }> {
-    const differences: Array<{ field: string; sourceValue: any; targetValue: any; difference: any }> = [];
+    mappings: ColumnMapping[],
+    config: ReconciliationConfig
+  ): string[] {
+    const discrepancies: string[] = [];
 
     for (const mapping of mappings) {
       if (!mapping.sourceColumn || !mapping.targetColumn) continue;
 
-      const sourceValue = Array.isArray(mapping.sourceColumn) 
+      const sourceValue = Array.isArray(mapping.sourceColumn)
         ? mapping.sourceColumn.map(col => sourceRow[col]).join(' ')
         : sourceRow[mapping.sourceColumn];
       const targetValue = targetRow[mapping.targetColumn];
 
-      if (sourceValue !== targetValue) {
-        let difference: any = null;
+      // Use the smart comparison logic from valuesMatch, but inverted
+      let areDifferent = false;
 
-        // Calculate numeric difference
-        if (typeof sourceValue === 'number' && typeof targetValue === 'number') {
-          difference = sourceValue - targetValue;
-        }
+      if (sourceValue instanceof Date && targetValue instanceof Date) {
+        areDifferent = sourceValue.getTime() !== targetValue.getTime();
+      } else if (this.isNumeric(sourceValue) && this.isNumeric(targetValue)) {
+        const num1 = this.parseNumeric(sourceValue);
+        const num2 = this.parseNumeric(targetValue);
+        areDifferent = Math.abs(num1 - num2) > (config.tolerance || 0.000001);
+      } else if (typeof sourceValue === 'string' && typeof targetValue === 'string') {
+        areDifferent = sourceValue.toLowerCase().trim() !== targetValue.toLowerCase().trim();
+      } else {
+        // Fallback for mixed types or non-string/numeric/date
+        areDifferent = String(sourceValue).toLowerCase().trim() !== String(targetValue).toLowerCase().trim();
+      }
 
-        differences.push({
-          field: mapping.targetColumn,
-          sourceValue,
-          targetValue,
-          difference
-        });
+      if (areDifferent) {
+        const sVal = sourceValue instanceof Date ? sourceValue.toISOString() : sourceValue;
+        const tVal = targetValue instanceof Date ? targetValue.toISOString() : targetValue;
+        discrepancies.push(`${mapping.targetColumn}: ${sVal} ≠ ${tVal}`);
       }
     }
 
-    return differences;
+    return discrepancies;
   }
 
   /**
@@ -291,7 +311,7 @@ export class ReconciliationEngine {
   ): number {
     // Look for amount-related columns
     const amountColumns = ['amount', 'value', 'total', 'debit_amount', 'credit_amount'];
-    
+
     for (const col of amountColumns) {
       if (row[col] !== undefined && typeof row[col] === 'number') {
         return row[col];
@@ -302,12 +322,12 @@ export class ReconciliationEngine {
     for (const mapping of mappings) {
       const sourceCol = mapping.sourceColumn;
       const targetCol = mapping.targetColumn;
-      
+
       if (sourceCol && typeof sourceCol === 'string' && amountColumns.some(ac => sourceCol.toLowerCase().includes(ac))) {
         const value = typeof sourceCol === 'string' ? row[sourceCol] : 0;
         if (typeof value === 'number') return value;
       }
-      
+
       if (targetCol && amountColumns.some(ac => targetCol.toLowerCase().includes(ac))) {
         const value = row[targetCol];
         if (typeof value === 'number') return value;
@@ -325,15 +345,15 @@ export class ReconciliationEngine {
       fieldName = fieldName[0]; // Use first field for weight calculation
     }
     const lowerField = fieldName.toLowerCase();
-    
+
     // High importance fields
     if (lowerField.includes('id') || lowerField.includes('reference')) return 3;
     if (lowerField.includes('amount') || lowerField.includes('value')) return 3;
-    
+
     // Medium importance fields
     if (lowerField.includes('date')) return 2;
     if (lowerField.includes('description') || lowerField.includes('details')) return 2;
-    
+
     // Default weight
     return 1;
   }
@@ -344,10 +364,59 @@ export class ReconciliationEngine {
   private static isDate(value: any): boolean {
     if (value instanceof Date) return true;
     if (typeof value === 'string') {
-      const date = new Date(value);
+      if (value.trim() === '') return false;
+      const str = value.trim();
+
+      const dashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (dashMatch) {
+        const [_, d, m, yStr, h, min, s] = dashMatch;
+        let y = Number(yStr);
+        if (y < 100) y += 2000;
+        const parsedObj = new Date(y, Number(m) - 1, Number(d), Number(h || 0), Number(min || 0), Number(s || 0));
+        return !isNaN(parsedObj.getTime());
+      }
+
+      const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (slashMatch) {
+        const [_, m, d, yStr, h, min, s] = slashMatch;
+        let y = Number(yStr);
+        if (y < 100) y += 2000;
+        const parsedObj = new Date(y, Number(m) - 1, Number(d), Number(h || 0), Number(min || 0), Number(s || 0));
+        return !isNaN(parsedObj.getTime());
+      }
+
+      const date = new Date(str);
       return !isNaN(date.getTime());
     }
     return false;
+  }
+
+  /**
+   * Parse a date value robustly
+   */
+  private static parseDate(value: any): Date {
+    if (value instanceof Date) return value;
+    if (typeof value === 'string') {
+      const str = value.trim();
+
+      const dashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (dashMatch) {
+        const [_, d, m, yStr, h, min, s] = dashMatch;
+        let y = Number(yStr);
+        if (y < 100) y += 2000;
+        return new Date(y, Number(m) - 1, Number(d), Number(h || 0), Number(min || 0), Number(s || 0));
+      }
+
+      const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (slashMatch) {
+        const [_, m, d, yStr, h, min, s] = slashMatch;
+        let y = Number(yStr);
+        if (y < 100) y += 2000;
+        return new Date(y, Number(m) - 1, Number(d), Number(h || 0), Number(min || 0), Number(s || 0));
+      }
+      return new Date(str);
+    }
+    return new Date(NaN);
   }
 
   /**
@@ -363,14 +432,14 @@ export class ReconciliationEngine {
   private static getRowId(row: Record<string, any>): string {
     // Try to find a unique identifier
     const idFields = ['id', 'transaction_id', 'reference', 'ref_number'];
-    
+
     for (const field of idFields) {
       const value = row[field] || row[field.toUpperCase()] || row[field.toLowerCase()];
       if (value !== undefined) {
         return String(value);
       }
     }
-    
+
     // Fallback to hash of row content
     return this.hashRow(row);
   }

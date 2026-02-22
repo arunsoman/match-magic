@@ -34,11 +34,12 @@ export interface ReconciliationResult {
   id: string;
   sourceRow: Record<string, any>;
   targetRow?: Record<string, any>;
+  sourceLine?: number;
+  targetLine?: number;
   status: 'matched' | 'unmatched-source' | 'unmatched-target' | 'discrepancy';
   confidence?: number;
-  differences?: string[];
-  amount?: number;
   discrepancies?: string[];
+  amount?: number;
   transformations?: {
     source?: string[];
     target?: string[];

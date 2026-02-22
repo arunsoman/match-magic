@@ -1,5 +1,7 @@
 import { ColumnMapping, FormulaMapping, TransformedData, VirtualField } from '@/types/reconciliation';
+import { TransformationPipeline } from '@/types/transformations';
 import { ExpressionEvaluator } from '@/utils/expressionEvaluator';
+import { TransformationEngine } from '@/utils/transformationEngine';
 
 export class DataTransformer {
   /**
@@ -9,13 +11,31 @@ export class DataTransformer {
     data: Record<string, any>[],
     virtualFields: VirtualField[],
     mappings: ColumnMapping[],
-    isSource: boolean = true
+    isSource: boolean = true,
+    transformations: TransformationPipeline[] = []
   ): TransformedData[] {
     // First, compute virtual fields
-    const dataWithVirtuals = this.computeVirtualFields(data, virtualFields);
-    
-    // Then apply existing transformations
-    return this.transformData(dataWithVirtuals, mappings, isSource);
+    let currentData = this.computeVirtualFields(data, virtualFields);
+
+    // Then apply pipeline transformations
+    if (transformations && transformations.length > 0) {
+      currentData = currentData.map(row => {
+        const newRow = { ...row };
+        transformations.forEach(pipeline => {
+          if (newRow[pipeline.columnId] !== undefined) {
+            const result = TransformationEngine.executePipeline(newRow[pipeline.columnId], pipeline);
+            if (result.success) {
+              const targetField = pipeline.outputColumn || pipeline.columnId;
+              newRow[targetField] = result.transformedValue;
+            }
+          }
+        });
+        return newRow;
+      });
+    }
+
+    // Then apply existing formula mapping transformations
+    return this.transformData(currentData, mappings, isSource);
   }
 
   /**
@@ -28,7 +48,7 @@ export class DataTransformer {
     if (virtualFields.length === 0) return data;
 
     const result = ExpressionEvaluator.evaluateVirtualFields(virtualFields, data);
-    
+
     if (result.success && result.data) {
       return result.data;
     } else {
@@ -82,13 +102,13 @@ export class DataTransformer {
     switch (formula.type) {
       case 'debit_credit_to_amount':
         return this.debitCreditToAmount(row, mapping, isSource);
-      
+
       case 'amount_to_debit_credit':
         return this.amountToDebitCredit(row, mapping, isSource);
-      
+
       case 'custom':
         return this.customFormula(row, mapping, isSource);
-      
+
       default:
         return null;
     }
@@ -113,7 +133,7 @@ export class DataTransformer {
 
     const debitValue = this.parseNumber(row[debitCol]) || 0;
     const creditValue = this.parseNumber(row[creditCol]) || 0;
-    
+
     // Amount = Credit - Debit (positive for credit, negative for debit)
     const amount = creditValue - debitValue;
 
@@ -141,13 +161,13 @@ export class DataTransformer {
     if (!amountCol || !targetDebitCol || !targetCreditCol) return null;
 
     const amount = this.parseNumber(row[amountCol]) || 0;
-    
+
     // If amount is positive, it's a credit; if negative, it's a debit
     const debit = amount < 0 ? Math.abs(amount) : 0;
     const credit = amount > 0 ? amount : 0;
 
     return {
-      data: { 
+      data: {
         [targetDebitCol]: debit,
         [targetCreditCol]: credit
       },
@@ -193,7 +213,7 @@ export class DataTransformer {
     // Check for debit/credit to amount scenario
     const sourceHasDebitCredit = this.hasDebitCreditColumns(sourceColumns);
     const targetHasAmount = this.hasAmountColumn(targetColumns);
-    
+
     if (sourceHasDebitCredit && targetHasAmount) {
       suggestions.push({
         id: 'suggested-debit-credit-to-amount',
@@ -212,7 +232,7 @@ export class DataTransformer {
     // Check for amount to debit/credit scenario
     const sourceHasAmount = this.hasAmountColumn(sourceColumns);
     const targetHasDebitCredit = this.hasDebitCreditColumns(targetColumns);
-    
+
     if (sourceHasAmount && targetHasDebitCredit) {
       suggestions.push({
         id: 'suggested-amount-to-debit-credit',
@@ -246,7 +266,7 @@ export class DataTransformer {
 
   private static findColumn(columns: string[], keywords: string[]): string | null {
     for (const keyword of keywords) {
-      const found = columns.find(col => 
+      const found = columns.find(col =>
         col.toLowerCase().includes(keyword.toLowerCase())
       );
       if (found) return found;

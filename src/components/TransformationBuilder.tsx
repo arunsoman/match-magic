@@ -8,12 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Plus, 
-  Trash2, 
-  GripVertical, 
-  Play, 
-  Save, 
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Play,
+  Save,
   RotateCcw,
   Settings,
   Eye,
@@ -22,9 +22,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { 
-  TransformationPipeline, 
-  TransformationStep, 
+import {
+  TransformationPipeline,
+  TransformationStep,
   TransformationType,
   TransformationPreset,
   TransformationPreview,
@@ -52,7 +52,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
   initialPipeline,
   sourceFile
 }) => {
-  const [pipeline, setPipeline] = useState<TransformationPipeline>(() => 
+  const [pipeline, setPipeline] = useState<TransformationPipeline>(() =>
     initialPipeline || {
       id: Date.now().toString(),
       name: '',
@@ -82,7 +82,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
+
       setPipeline(newPipeline);
       setSelectedColumn(initialPipeline?.columnId || '');
       setPreview(null);
@@ -135,8 +135,8 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
   const updateStepParameter = useCallback((stepId: string, paramName: string, value: any) => {
     setPipeline(prev => ({
       ...prev,
-      steps: prev.steps.map(step => 
-        step.id === stepId 
+      steps: prev.steps.map(step =>
+        step.id === stepId
           ? { ...step, parameters: { ...step.parameters, [paramName]: value } }
           : step
       ),
@@ -157,7 +157,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
 
   const handleDrop = useCallback((e: React.DragEvent, targetStepId: string) => {
     e.preventDefault();
-    
+
     if (!draggedStepId || draggedStepId === targetStepId) {
       setDraggedStepId(null);
       return;
@@ -199,7 +199,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
 
     const columnData = sampleData.map(row => row[selectedColumn]);
     const pipelineWithColumn = { ...pipeline, columnId: selectedColumn };
-    
+
     const previewResult = TransformationEngine.generatePreview(columnData, pipelineWithColumn);
     setPreview(previewResult);
     setShowPreview(true);
@@ -235,7 +235,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
 
     const pipelineWithColumn = { ...pipeline, columnId: selectedColumn };
     const validation = TransformationEngine.validatePipeline(pipelineWithColumn);
-    
+
     setValidationErrors(validation.errors);
     return validation.valid;
   }, [selectedColumn, pipeline]);
@@ -260,6 +260,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
       id: Date.now().toString(),
       name: '',
       columnId: '',
+      outputColumn: '',
       sourceFile,
       steps: [],
       createdAt: new Date(),
@@ -293,7 +294,7 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
                 placeholder="Enter pipeline name..."
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="column-select">Target Column</Label>
               <Select value={selectedColumn} onValueChange={setSelectedColumn}>
@@ -308,6 +309,16 @@ export const TransformationBuilder: React.FC<TransformationBuilderProps> = ({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="output-column-name">Output Column Name (Optional)</Label>
+              <Input
+                id="output-column-name"
+                value={pipeline.outputColumn || ''}
+                onChange={(e) => setPipeline(prev => ({ ...prev, outputColumn: e.target.value }))}
+                placeholder="Leave blank to overwrite"
+              />
             </div>
           </div>
 
@@ -504,7 +515,7 @@ const TransformationStepCard: React.FC<TransformationStepCardProps> = ({
             {index + 1}
           </Badge>
         </div>
-        
+
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div>
@@ -583,8 +594,8 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, value, onCha
       return (
         <Input
           type="number"
-          value={value || ''}
-          onChange={(e) => onChange(Number(e.target.value))}
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
           className="text-sm"
         />
       );
@@ -639,9 +650,9 @@ const TransformationPreviewCard: React.FC<TransformationPreviewCardProps> = ({ p
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 overflow-x-auto pb-2">
         {preview.results.map((result, index) => (
-          <div key={index} className="flex items-center gap-4 p-2 bg-background rounded border">
+          <div key={index} className="flex items-center gap-4 p-2 bg-background rounded border min-w-max">
             <div className="flex items-center gap-2">
               {result.success ? (
                 <CheckCircle className="w-4 h-4 text-success" />
@@ -652,7 +663,7 @@ const TransformationPreviewCard: React.FC<TransformationPreviewCardProps> = ({ p
                 {index + 1}
               </Badge>
             </div>
-            
+
             <div className="flex-1 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Original:</span>

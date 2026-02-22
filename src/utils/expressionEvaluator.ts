@@ -21,7 +21,7 @@ export class ExpressionEvaluator {
   ): EvaluationResult {
     try {
       const { fields, operations } = formula;
-      
+
       if (fields.length === 0) {
         return { success: false, error: 'No fields specified in formula' };
       }
@@ -30,10 +30,7 @@ export class ExpressionEvaluator {
       const fieldValues: any[] = [];
       for (const field of fields) {
         const value = this.getFieldValue(field, context);
-        if (value === null || value === undefined) {
-          return { success: false, error: `Field '${field.name}' not found or has no value` };
-        }
-        fieldValues.push(value);
+        fieldValues.push(value === undefined ? null : value);
       }
 
       // If only one field, return its value
@@ -46,7 +43,7 @@ export class ExpressionEvaluator {
       for (let i = 0; i < operations.length && i < fieldValues.length - 1; i++) {
         const operation = operations[i];
         const nextValue = fieldValues[i + 1];
-        
+
         const operationResult = this.applyOperation(result, nextValue, operation);
         if (!operationResult.success) {
           return operationResult;
@@ -56,9 +53,9 @@ export class ExpressionEvaluator {
 
       return { success: true, value: result };
     } catch (error) {
-      return { 
-        success: false, 
-        error: `Formula evaluation error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      return {
+        success: false,
+        error: `Formula evaluation error: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
@@ -75,7 +72,7 @@ export class ExpressionEvaluator {
         return result.success ? result.value : null;
       }
     }
-    
+
     return context.row[field.name];
   }
 
@@ -91,48 +88,48 @@ export class ExpressionEvaluator {
       switch (operation.type) {
         case 'add':
           return this.performArithmetic(leftValue, rightValue, (a, b) => a + b, 'addition');
-        
+
         case 'subtract':
           return this.performArithmetic(leftValue, rightValue, (a, b) => a - b, 'subtraction');
-        
+
         case 'multiply':
           return this.performArithmetic(leftValue, rightValue, (a, b) => a * b, 'multiplication');
-        
+
         case 'divide':
           return this.performArithmetic(leftValue, rightValue, (a, b) => {
             if (b === 0) throw new Error('Division by zero');
             return a / b;
           }, 'division');
-        
+
         case 'abs':
           const numValue = this.parseNumber(leftValue);
           if (numValue === null) {
             return { success: false, error: 'Absolute value requires a numeric value' };
           }
           return { success: true, value: Math.abs(numValue) };
-        
+
         case 'negate':
           const negValue = this.parseNumber(leftValue);
           if (negValue === null) {
             return { success: false, error: 'Negation requires a numeric value' };
           }
           return { success: true, value: -negValue };
-        
+
         case 'concat':
           const leftStr = this.parseString(leftValue);
           const rightStr = this.parseString(rightValue);
           return { success: true, value: leftStr + rightStr };
-        
+
         case 'date_diff':
           return this.performDateDifference(leftValue, rightValue);
-        
+
         default:
           return { success: false, error: `Unsupported operation: ${operation.type}` };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        error: `Operation '${operation.type}' failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      return {
+        success: false,
+        error: `Operation '${operation.type}' failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
@@ -150,14 +147,14 @@ export class ExpressionEvaluator {
     const rightNum = this.parseNumber(rightValue);
 
     if (leftNum === null || rightNum === null) {
-      return { 
-        success: false, 
-        error: `${operationName} requires numeric values. Got: ${leftValue} and ${rightValue}` 
+      return {
+        success: false,
+        error: `${operationName} requires numeric values. Got: ${leftValue} and ${rightValue}`
       };
     }
 
     const result = operation(leftNum, rightNum);
-    
+
     if (!isFinite(result)) {
       return { success: false, error: `${operationName} resulted in invalid number: ${result}` };
     }
@@ -173,15 +170,15 @@ export class ExpressionEvaluator {
     const rightDate = this.parseDate(rightValue);
 
     if (!leftDate || !rightDate) {
-      return { 
-        success: false, 
-        error: `Date difference requires valid dates. Got: ${leftValue} and ${rightValue}` 
+      return {
+        success: false,
+        error: `Date difference requires valid dates. Got: ${leftValue} and ${rightValue}`
       };
     }
 
     const diffMs = leftDate.getTime() - rightDate.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     return { success: true, value: diffDays };
   }
 
@@ -189,22 +186,29 @@ export class ExpressionEvaluator {
    * Parse a value as a number with various format support
    */
   private static parseNumber(value: any): number | null {
-    if (typeof value === 'number') {
-      return isNaN(value) ? null : value;
+    if (value === null || value === undefined || value === '') {
+      return 0;
     }
-    
+
+    if (typeof value === 'number') {
+      return isNaN(value) ? 0 : value;
+    }
+
     if (typeof value === 'string') {
+      if (value.toUpperCase() === 'N/A') return 0;
       // Remove common formatting characters
       const cleaned = value.replace(/[,$\s%]/g, '');
+      if (cleaned === '') return 0;
+
       const parsed = parseFloat(cleaned);
-      return isNaN(parsed) ? null : parsed;
+      return isNaN(parsed) ? 0 : parsed;
     }
-    
+
     if (typeof value === 'boolean') {
       return value ? 1 : 0;
     }
-    
-    return null;
+
+    return 0;
   }
 
   /**
@@ -224,17 +228,17 @@ export class ExpressionEvaluator {
     if (value instanceof Date) {
       return isNaN(value.getTime()) ? null : value;
     }
-    
+
     if (typeof value === 'string') {
       const parsed = new Date(value);
       return isNaN(parsed.getTime()) ? null : parsed;
     }
-    
+
     if (typeof value === 'number') {
       const parsed = new Date(value);
       return isNaN(parsed.getTime()) ? null : parsed;
     }
-    
+
     return null;
   }
 
@@ -262,7 +266,7 @@ export class ExpressionEvaluator {
         };
 
         const result = this.evaluateFormula(virtualField.formula, context);
-        
+
         if (result.success) {
           enhancedRow[virtualField.name] = result.value;
           availableVirtualFields.push(virtualField);
@@ -291,7 +295,7 @@ export class ExpressionEvaluator {
 
     while (remaining.length > 0) {
       const initialLength = remaining.length;
-      
+
       for (let i = remaining.length - 1; i >= 0; i--) {
         const field = remaining[i];
         const hasUnresolvedDependencies = field.formula.fields.some(
@@ -329,9 +333,9 @@ export class ExpressionEvaluator {
     for (let i = 0; i < Math.min(sampleData.length, 5); i++) {
       const row = sampleData[i];
       const context: EvaluationContext = { row, virtualFields };
-      
+
       const result = this.evaluateFormula(formula, context);
-      
+
       if (result.success) {
         preview.push(result.value);
       } else {

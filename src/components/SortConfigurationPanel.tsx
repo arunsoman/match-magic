@@ -17,7 +17,6 @@ export interface SortConfiguration {
   toleranceUnit: 'minutes' | 'hours' | 'days' | 'amount' | 'percentage' | 'exact';
   matchStrategy: 'exact' | 'fuzzy' | 'smart';
   chunkSize: number;
-  timeDirection: 'bidirectional' | 'forward' | 'backward'; // For time-based matching
 }
 
 interface SortConfigurationPanelProps {
@@ -42,8 +41,6 @@ export const SortConfigurationPanel: React.FC<SortConfigurationPanelProps> = ({
     toleranceUnit: initialConfig?.toleranceUnit || 'exact',
     matchStrategy: initialConfig?.matchStrategy || 'smart',
     chunkSize: initialConfig?.chunkSize || 10000,
-    timeDirection: initialConfig?.timeDirection || 'bidirectional',
-    ...initialConfig
   });
 
   const [errors, setErrors] = useState<string[]>([]);
@@ -301,46 +298,7 @@ export const SortConfigurationPanel: React.FC<SortConfigurationPanelProps> = ({
             </div>
           </div>
 
-          {(config.toleranceUnit === 'minutes' || config.toleranceUnit === 'hours' || config.toleranceUnit === 'days') && (
-            <div>
-              <Label htmlFor="time-direction" className="text-sm font-medium">
-                Time Matching Direction
-              </Label>
-              <Select
-                value={config.timeDirection}
-                onValueChange={(value: any) => updateConfig('timeDirection', value)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bidirectional">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-2" />
-                      ± Bidirectional (source ± tolerance)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="forward">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-2" />
-                      → Forward (source + tolerance)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="backward">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-2" />
-                      ← Backward (source - tolerance)
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {config.timeDirection === 'forward' && `Target matches if within source time + ${config.tolerance} ${config.toleranceUnit}`}
-                {config.timeDirection === 'backward' && `Target matches if within source time - ${config.tolerance} ${config.toleranceUnit}`}
-                {config.timeDirection === 'bidirectional' && `Target matches if within source time ± ${config.tolerance} ${config.toleranceUnit}`}
-              </p>
-            </div>
-          )}
+
 
           {/* Chunk Size */}
           <div className="space-y-2">
@@ -390,13 +348,11 @@ export const SortConfigurationPanel: React.FC<SortConfigurationPanelProps> = ({
               <div>• Source Field: <strong>{config.sourceSortKey}</strong></div>
               <div>• Target Field: <strong>{config.targetSortKey}</strong></div>
               <div>• Tolerance: <strong>
-                {config.toleranceUnit === 'exact' 
-                  ? 'Exact matches only' 
+                {config.toleranceUnit === 'exact'
+                  ? 'Exact matches only'
                   : `±${config.tolerance} ${config.toleranceUnit}`}
               </strong></div>
-              {(config.toleranceUnit === 'minutes' || config.toleranceUnit === 'hours' || config.toleranceUnit === 'days') && (
-                <div>• Time Direction: <strong>{config.timeDirection}</strong></div>
-              )}
+
               <div>• Strategy: <strong>{config.matchStrategy}</strong></div>
               <div>• Chunk Size: <strong>{config.chunkSize.toLocaleString()} rows</strong></div>
               {config.sourceSortKey && config.targetSortKey && (

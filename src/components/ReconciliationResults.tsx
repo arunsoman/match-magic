@@ -204,7 +204,8 @@ const ResultsTable: React.FC<{ results: ReconciliationResult[]; getStatusIcon: (
         <thead>
           <tr className="border-b border-border">
             <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Status</th>
-            <th className="text-left py-2 px-4 text-sm font-medium text-foreground">ID</th>
+            <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Src Line</th>
+            <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Tgt Line</th>
             <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Source Data</th>
             <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Target Data</th>
             <th className="text-left py-2 px-4 text-sm font-medium text-foreground">Issues</th>
@@ -219,9 +220,10 @@ const ResultsTable: React.FC<{ results: ReconciliationResult[]; getStatusIcon: (
                   {getStatusBadge(result.status)}
                 </div>
               </td>
-              <td className="py-3 px-4 text-sm text-foreground">{result.id}</td>
+              <td className="py-3 px-4 text-sm text-foreground">{result.sourceLine || '-'}</td>
+              <td className="py-3 px-4 text-sm text-foreground">{result.targetLine || '-'}</td>
               <td className="py-3 px-4 text-sm text-muted-foreground">
-                {result.sourceRow ? 
+                {result.sourceRow ?
                   Object.entries(result.sourceRow).slice(0, 2).map(([key, value]) => (
                     <div key={key}>{key}: {String(value)}</div>
                   ))
@@ -229,7 +231,7 @@ const ResultsTable: React.FC<{ results: ReconciliationResult[]; getStatusIcon: (
                 }
               </td>
               <td className="py-3 px-4 text-sm text-muted-foreground">
-                {result.targetRow ? 
+                {result.targetRow ?
                   Object.entries(result.targetRow).slice(0, 2).map(([key, value]) => (
                     <div key={key}>{key}: {String(value)}</div>
                   ))

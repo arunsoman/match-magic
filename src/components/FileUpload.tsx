@@ -29,11 +29,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     // Validate file type
     const validTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel'
+      'application/vnd.ms-excel',
+      'text/csv'
     ];
 
-    if (!validTypes.includes(file.type)) {
-      setError('Please upload only Excel files (.xlsx, .xls)');
+    if (!validTypes.includes(file.type) && !file.name.endsWith('.csv')) {
+      setError('Please upload only Excel or CSV files (.xlsx, .xls, .csv)');
       return;
     }
 
@@ -51,7 +52,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     onDrop,
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel': ['.xls']
+      'application/vnd.ms-excel': ['.xls'],
+      'text/csv': ['.csv']
     },
     multiple: false
   });
@@ -60,7 +62,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     <Card className={cn("relative", className)}>
       <div className="p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">{title}</h3>
-        
+
         <div
           {...getRootProps()}
           className={cn(
@@ -68,14 +70,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             isDragActive
               ? "border-primary bg-accent/50"
               : acceptedFile
-              ? "border-success bg-success/5"
-              : error
-              ? "border-destructive bg-destructive/5"
-              : "border-border hover:border-primary hover:bg-accent/20"
+                ? "border-success bg-success/5"
+                : error
+                  ? "border-destructive bg-destructive/5"
+                  : "border-border hover:border-primary hover:bg-accent/20"
           )}
         >
           <input {...getInputProps()} />
-          
+
           {acceptedFile ? (
             <div className="space-y-3">
               <Check className="w-12 h-12 text-success mx-auto" />
@@ -104,25 +106,25 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               ) : (
                 <Upload className="w-12 h-12 text-muted-foreground mx-auto" />
               )}
-              
+
               <div>
                 <p className="text-sm font-medium text-foreground">
                   {isDragActive
-                    ? "Drop your Excel file here"
-                    : "Drag & drop your Excel file here"
+                    ? "Drop your Excel or CSV file here"
+                    : "Drag & drop your Excel or CSV file here"
                   }
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   or click to browse files
                 </p>
               </div>
-              
+
               {error && (
                 <p className="text-sm text-destructive font-medium">{error}</p>
               )}
-              
+
               <div className="text-xs text-muted-foreground">
-                <p>Supported formats: .xlsx, .xls</p>
+                <p>Supported formats: .xlsx, .xls, .csv</p>
                 <p>Maximum size: 10MB</p>
               </div>
             </div>
