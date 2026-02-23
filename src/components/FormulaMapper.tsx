@@ -57,7 +57,7 @@ export const FormulaMapper: React.FC<FormulaMapperProps> = ({
         <Calculator className="w-4 h-4" />
         <span>Converting Debit + Credit columns to single Amount column</span>
       </div>
-      
+
       <div className="grid grid-cols-12 gap-4 items-center">
         {/* Source Debit */}
         <div className="col-span-3">
@@ -148,7 +148,7 @@ export const FormulaMapper: React.FC<FormulaMapperProps> = ({
         <Calculator className="w-4 h-4" />
         <span>Converting single Amount column to Debit + Credit columns</span>
       </div>
-      
+
       <div className="grid grid-cols-12 gap-4 items-center">
         {/* Source Amount */}
         <div className="col-span-4">
@@ -243,7 +243,7 @@ export const FormulaMapper: React.FC<FormulaMapperProps> = ({
           </Badge>
           <Select
             value={mapping.formula?.type || ''}
-            onValueChange={(value: 'debit_credit_to_amount' | 'amount_to_debit_credit') => 
+            onValueChange={(value: 'debit_credit_to_amount' | 'amount_to_debit_credit') =>
               updateFormula({ type: value })
             }
           >

@@ -33,11 +33,11 @@ export const TransformationCard: React.FC<TransformationCardProps> = ({
               {transformation.steps.length} steps
             </Badge>
           </div>
-          
+
           <div className="text-xs text-muted-foreground mb-2">
             <span className="font-medium">Column:</span> {transformation.columnId}
           </div>
-          
+
           {transformation.steps.length > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               {transformation.steps
@@ -60,7 +60,7 @@ export const TransformationCard: React.FC<TransformationCardProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-1 ml-2">
           <Button
             variant="ghost"

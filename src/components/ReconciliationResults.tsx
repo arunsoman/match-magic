@@ -5,6 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, CheckCircle, XCircle, AlertTriangle, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 
 import { ReconciliationResult } from '@/types/reconciliation';
 
@@ -22,6 +26,170 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
   className
 }) => {
   const [selectedTab, setSelectedTab] = useState('summary');
+
+  // Helper for flattening rows for export
+  const flattenRow = (row: any, prefix: string) => {
+    if (!row) return {};
+    const flattened: any = {};
+    Object.entries(row).forEach(([key, value]) => {
+      if (key !== '__line') {
+        flattened[`${prefix}_${key}`] = value;
+      }
+    });
+    return flattened;
+  };
+
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    // 1. Summary Sheet
+    const summaryData = [
+      ['Reconciliation Report Summary'],
+      ['Generated At', format(new Date(), 'yyyy-MM-dd HH:mm:ss')],
+      [''],
+      ['File Information'],
+      ['Source File', sourceFileName],
+      ['Target File', targetFileName],
+      [''],
+      ['Reconciliation Statistics'],
+      ['Total Records', stats.total],
+      ['Matched', stats.matched],
+      ['Unmatched Source', stats.unmatchedSource],
+      ['Unmatched Target', stats.unmatchedTarget],
+      ['Discrepancies', stats.discrepancies],
+      ['Match Rate', `${matchRate}%`],
+      [''],
+      ['How to read this report'],
+      ['Status', 'Meaning'],
+      ['Matched', 'Source and Target records match perfectly based on your rules.'],
+      ['Discrepancy', 'Source and Target records match but have differences in mapped fields.'],
+      ['Unmatched Source', 'Record exists in Source file but no matching record found in Target.'],
+      ['Unmatched Target', 'Record exists in Target file but no matching record found in Source.']
+    ];
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // 2. All Results Sheet
+    const allResultsData = results.map(r => ({
+      Status: r.status,
+      'Src Line': r.sourceLine || '',
+      'Tgt Line': r.targetLine || '',
+      ...flattenRow(r.sourceRow, 'Src'),
+      ...flattenRow(r.targetRow, 'Tgt'),
+      Issues: r.discrepancies?.join(', ') || ''
+    }));
+    const allResultsSheet = XLSX.utils.json_to_sheet(allResultsData);
+    XLSX.utils.book_append_sheet(workbook, allResultsSheet, 'All Results');
+
+    // 3. Discrepancies Sheet
+    const discrepancyData = results.filter(r => r.status === 'discrepancy').map(r => ({
+      'Src Line': r.sourceLine,
+      'Tgt Line': r.targetLine,
+      ...flattenRow(r.sourceRow, 'Src'),
+      ...flattenRow(r.targetRow, 'Tgt'),
+      Issues: r.discrepancies?.join(', ')
+    }));
+    if (discrepancyData.length > 0) {
+      const discrepancySheet = XLSX.utils.json_to_sheet(discrepancyData);
+      XLSX.utils.book_append_sheet(workbook, discrepancySheet, 'Discrepancies');
+    }
+
+    // 4. Unmatched Sheets
+    const sourceOnly = results.filter(r => r.status === 'unmatched-source').map(r => ({
+      Line: r.sourceLine,
+      ...flattenRow(r.sourceRow, 'Data')
+    }));
+    if (sourceOnly.length > 0) {
+      const sourceOnlySheet = XLSX.utils.json_to_sheet(sourceOnly);
+      XLSX.utils.book_append_sheet(workbook, sourceOnlySheet, 'Source Only (Missing in Target)');
+    }
+
+    const targetOnly = results.filter(r => r.status === 'unmatched-target').map(r => ({
+      Line: r.targetLine,
+      ...flattenRow(r.targetRow, 'Data')
+    }));
+    if (targetOnly.length > 0) {
+      const targetOnlySheet = XLSX.utils.json_to_sheet(targetOnly);
+      XLSX.utils.book_append_sheet(workbook, targetOnlySheet, 'Target Only (Missing in Source)');
+    }
+
+    XLSX.writeFile(workbook, `Reconciliation_Report_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF() as any;
+    const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Reconciliation Report', 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${timestamp}`, 14, 30);
+
+    // KPI Cards Simulation
+    doc.setDrawColor(230, 230, 230);
+    doc.setFillColor(249, 250, 251);
+    doc.roundedRect(14, 35, 40, 25, 3, 3, 'F');
+    doc.roundedRect(60, 35, 40, 25, 3, 3, 'F');
+    doc.roundedRect(106, 35, 40, 25, 3, 3, 'F');
+    doc.roundedRect(152, 35, 40, 25, 3, 3, 'F');
+
+    doc.setFontSize(14);
+    doc.setTextColor(34, 197, 94); // success
+    doc.text(stats.matched.toString(), 34, 48, { align: 'center' });
+    doc.setTextColor(239, 68, 68); // destructive
+    doc.text((stats.unmatchedSource + stats.unmatchedTarget).toString(), 80, 48, { align: 'center' });
+    doc.setTextColor(245, 158, 11); // warning
+    doc.text(stats.discrepancies.toString(), 126, 48, { align: 'center' });
+    doc.setTextColor(59, 130, 246); // primary
+    doc.text(`${matchRate}%`, 172, 48, { align: 'center' });
+
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Matched', 34, 55, { align: 'center' });
+    doc.text('Unmatched', 80, 55, { align: 'center' });
+    doc.text('Discrepancies', 126, 55, { align: 'center' });
+    doc.text('Match Rate', 172, 55, { align: 'center' });
+
+    // File Info
+    doc.setFontSize(10);
+    doc.setTextColor(40, 40, 40);
+    doc.text('File Analysis:', 14, 75);
+    doc.setFontSize(9);
+    doc.text(`Source: ${sourceFileName}`, 14, 82);
+    doc.text(`Target: ${targetFileName}`, 14, 88);
+
+    // Detailed Tables
+    const tableData = results.slice(0, 100).map(r => [
+      r.status.toUpperCase(),
+      r.sourceLine || '-',
+      r.targetLine || '-',
+      Object.entries(r.sourceRow || {}).slice(0, 1).map(([k, v]) => `${k}:${v}`).join('') || '-',
+      Object.entries(r.targetRow || {}).slice(0, 1).map(([k, v]) => `${k}:${v}`).join('') || '-',
+      r.discrepancies?.join(', ') || '-'
+    ]);
+
+    autoTable(doc, {
+      startY: 100,
+      head: [['Status', 'Src Line', 'Tgt Line', 'Source Summary', 'Target Summary', 'Issues']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246] },
+      styles: { fontSize: 8 },
+      margin: { top: 10 }
+    });
+
+    if (results.length > 100) {
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`* Showing first 100 of ${results.length} records. For full details, please export to Excel.`, 14, (doc as any).lastAutoTable.finalY + 10);
+    }
+
+    doc.save(`Reconciliation_Report_${format(new Date(), 'yyyy-MM-dd_HHmm')}.pdf`);
+  };
 
   // Calculate statistics
   const stats = {
@@ -84,11 +252,11 @@ export const ReconciliationResults: React.FC<ReconciliationResultsProps> = ({
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-foreground">Reconciliation Results</h3>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={exportToExcel}>
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
               <FileText className="w-4 h-4 mr-2" />
               Export PDF
             </Button>

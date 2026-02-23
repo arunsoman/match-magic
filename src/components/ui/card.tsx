@@ -1,19 +1,34 @@
 import * as React from "react"
-
 import { cn } from "@/lib/utils"
+import { ShineBorder } from "./shine-border"
 
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { showShine?: boolean }
+>(({ className, showShine = true, children, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "group relative rounded-lg border bg-card text-card-foreground shadow-sm transition-all duration-300",
       className
     )}
     {...props}
-  />
+  >
+    {showShine && (
+      <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg">
+        <ShineBorder
+          borderRadius={8}
+          borderWidth={1}
+          duration={8}
+          color={["#A07CFE", "#FE8FB5", "#FFBE7B"]}
+          className="absolute inset-0 size-full border-none bg-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+        >
+          <div className="invisible" />
+        </ShineBorder>
+      </div>
+    )}
+    {children}
+  </div>
 ))
 Card.displayName = "Card"
 

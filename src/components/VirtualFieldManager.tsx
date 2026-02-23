@@ -85,7 +85,7 @@ export const VirtualFieldManager: React.FC<VirtualFieldManagerProps> = ({
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  
+
                   <p className="text-xs text-muted-foreground mt-1">
                     {field.formula.rawFormula}
                   </p>

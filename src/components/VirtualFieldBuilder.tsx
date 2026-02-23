@@ -131,14 +131,14 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
 
   const addField = (columnName: string) => {
     if (selectedFields.some(f => f.name === columnName)) return;
-    
+
     const newField: FieldReference = {
       id: Date.now().toString(),
       name: columnName,
       dataType: inferDataType(columnName),
       isVirtual: false
     };
-    
+
     setSelectedFields([...selectedFields, newField]);
     updateRawFormula([...selectedFields, newField], selectedOperations);
   };
@@ -239,7 +239,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
     // Check data type compatibility
     const fieldDataTypes = selectedFields.map(f => f.dataType);
     const operationDataTypes = selectedOperations.map(op => op.dataTypes).flat();
-    
+
     if (dataType === 'number' && fieldDataTypes.some(dt => dt !== 'number')) {
       warnings.push('Some fields may not be numeric - conversion will be attempted');
     }
@@ -383,7 +383,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
                           <X className="w-3 h-3" />
                         </Button>
                       </Badge>
-                      
+
                       {index < selectedOperations.length && (
                         <Badge variant="outline" className="flex items-center gap-1">
                           {selectedOperations[index].symbol}
@@ -399,7 +399,7 @@ export const VirtualFieldBuilder: React.FC<VirtualFieldBuilderProps> = ({
                       )}
                     </React.Fragment>
                   ))}
-                  
+
                   {selectedFields.length === 0 && (
                     <span className="text-muted-foreground text-sm">
                       Add fields from above to build your formula
